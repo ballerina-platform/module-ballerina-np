@@ -104,7 +104,7 @@ import static io.ballerina.projects.util.ProjectConstants.EMPTY_STRING;
  *
  * @since 0.3.0
  */
-public class PromptAsCodeCodeModificationTask implements ModifierTask<SourceModifierContext> {
+public class RuntimePromptAsCodeCodeModificationTask implements ModifierTask<SourceModifierContext> {
 
     private static final Token OPEN_PAREN = createToken(OPEN_PAREN_TOKEN);
     private static final Token CLOSE_PAREN = createToken(CLOSE_PAREN_TOKEN);
