@@ -18,10 +18,8 @@
 
 package io.ballerina.lib.np.compilerplugin;
 
-import io.ballerina.compiler.api.ModuleID;
 import io.ballerina.compiler.api.SemanticModel;
 import io.ballerina.compiler.api.Types;
-import io.ballerina.compiler.api.symbols.ModuleSymbol;
 import io.ballerina.compiler.api.symbols.Symbol;
 import io.ballerina.compiler.api.symbols.TypeDefinitionSymbol;
 import io.ballerina.compiler.api.symbols.TypeSymbol;
@@ -32,11 +30,11 @@ import io.ballerina.compiler.syntax.tree.NaturalExpressionNode;
 import io.ballerina.compiler.syntax.tree.Node;
 import io.ballerina.compiler.syntax.tree.ParenthesizedArgList;
 import io.ballerina.compiler.syntax.tree.SeparatedNodeList;
-import io.ballerina.compiler.syntax.tree.SimpleNameReferenceNode;
 import io.ballerina.projects.Document;
 import io.ballerina.projects.Module;
 import io.ballerina.projects.ModuleId;
 import io.ballerina.projects.Package;
+import io.ballerina.projects.ProjectKind;
 import io.ballerina.projects.plugins.AnalysisTask;
 import io.ballerina.projects.plugins.SyntaxNodeAnalysisContext;
 import io.ballerina.tools.diagnostics.Location;
@@ -46,8 +44,10 @@ import java.util.Optional;
 import static io.ballerina.lib.np.compilerplugin.Commons.MODULE_NAME;
 import static io.ballerina.lib.np.compilerplugin.Commons.ORG_NAME;
 import static io.ballerina.lib.np.compilerplugin.Commons.VERSION;
+import static io.ballerina.lib.np.compilerplugin.Commons.isCodeAnnotation;
 import static io.ballerina.lib.np.compilerplugin.Commons.isNotNPCallCall;
-import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode.CODE_GEN_WITH_CODE_ANNOT_NOT_YET_SUPPORTED;
+import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode
+        .CODE_GEN_WITH_CODE_ANNOT_NOT_SUPPORTED_IN_SINGLE_BAL_FILE_MODE;
 import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode.CONST_NATURAL_EXPR_NOT_YET_SUPPORTED;
 import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode.EXPECTED_A_SUBTYPE_OF_NP_MODEL;
 import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode.NON_JSON_EXPECTED_TYPE_NOT_YET_SUPPORTED;
@@ -63,7 +63,6 @@ import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.reportError;
  */
 public class Validator implements AnalysisTask<SyntaxNodeAnalysisContext> {
     private static final String MODEL_PROVIDER_TYPE = "ModelProvider";
-    private static final String CODE_ANNOTATION = "code";
 
     private final CodeModifier.AnalysisData analysisData;
     private Optional<TypeSymbol> jsonOrErrorType = Optional.empty();
@@ -90,7 +89,8 @@ public class Validator implements AnalysisTask<SyntaxNodeAnalysisContext> {
         }
 
         if (node instanceof AnnotationNode annotationNode) {
-            validateCompileTimeCodeGenAnnotation(semanticModel, annotationNode, ctx);
+            validateCompileTimeCodeGenAnnotation(semanticModel, annotationNode, ctx,
+                    currentPackage.project().kind() == ProjectKind.SINGLE_FILE_PROJECT);
             return;
         }
 
@@ -150,15 +150,10 @@ public class Validator implements AnalysisTask<SyntaxNodeAnalysisContext> {
     }
 
     private void validateCompileTimeCodeGenAnnotation(SemanticModel semanticModel, AnnotationNode annotationNode,
-                                                      SyntaxNodeAnalysisContext ctx) {
-        Node node = annotationNode.annotReference();
-        if (!(node instanceof SimpleNameReferenceNode simpleNameReferenceNode) ||
-                !CODE_ANNOTATION.equals(simpleNameReferenceNode.name().text())) {
-            return;
-        }
-
-        if (isAnnotationsModule(semanticModel.symbol(node).get().getModule().get())) {
-            reportError(ctx, this.analysisData, annotationNode.location(), CODE_GEN_WITH_CODE_ANNOT_NOT_YET_SUPPORTED);
+                                                      SyntaxNodeAnalysisContext ctx, boolean isSingleBalFileMode) {
+        if (isSingleBalFileMode && isCodeAnnotation(annotationNode, semanticModel)) {
+            reportError(ctx, this.analysisData, annotationNode.location(),
+                    CODE_GEN_WITH_CODE_ANNOT_NOT_SUPPORTED_IN_SINGLE_BAL_FILE_MODE);
         }
     }
 
@@ -195,10 +190,5 @@ public class Validator implements AnalysisTask<SyntaxNodeAnalysisContext> {
         TypeSymbol jsonOrErrorType = types.builder().UNION_TYPE.withMemberTypes(types.JSON, types.ERROR).build();
         this.jsonOrErrorType = Optional.of(jsonOrErrorType);
         return jsonOrErrorType;
-    }
-
-    private static boolean isAnnotationsModule(ModuleSymbol moduleSymbol) {
-        ModuleID moduleId = moduleSymbol.id();
-        return ORG_NAME.equals(moduleId.orgName()) && "lang.annotations".equals(moduleId.moduleName());
     }
 }

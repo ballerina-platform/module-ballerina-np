@@ -22,6 +22,7 @@ import io.ballerina.compiler.api.SemanticModel;
 import io.ballerina.compiler.api.symbols.FunctionSymbol;
 import io.ballerina.compiler.api.symbols.ModuleSymbol;
 import io.ballerina.compiler.api.symbols.Symbol;
+import io.ballerina.compiler.syntax.tree.AnnotationNode;
 import io.ballerina.compiler.syntax.tree.DefaultableParameterNode;
 import io.ballerina.compiler.syntax.tree.ExpressionNode;
 import io.ballerina.compiler.syntax.tree.FunctionCallExpressionNode;
@@ -31,6 +32,7 @@ import io.ballerina.compiler.syntax.tree.Node;
 import io.ballerina.compiler.syntax.tree.ParameterNode;
 import io.ballerina.compiler.syntax.tree.RequiredParameterNode;
 import io.ballerina.compiler.syntax.tree.RestParameterNode;
+import io.ballerina.compiler.syntax.tree.SimpleNameReferenceNode;
 import io.ballerina.compiler.syntax.tree.SyntaxKind;
 
 import java.util.Optional;
@@ -45,6 +47,9 @@ class Commons {
     static final String MODULE_NAME = "np";
     static final String VERSION = "0.1.0";
     static final String CALL_LLM = "callLlm";
+
+    static final String LANG_ANNOTATIONS_MODULE = "lang.annotations";
+    static final String CODE_ANNOTATION = "code";
 
     static boolean isRuntimeNaturalExpression(ExpressionNode expressionNode) {
         return expressionNode instanceof NaturalExpressionNode naturalExpressionNode &&
@@ -92,5 +97,20 @@ class Commons {
         }
 
         return !(isNPModule(moduleOptional.get()) && CALL_LLM.equals(nameOptional.get()));
+    }
+
+    static boolean isCodeAnnotation(AnnotationNode annotationNode, SemanticModel semanticModel) {
+        Node node = annotationNode.annotReference();
+        if (!(node instanceof SimpleNameReferenceNode simpleNameReferenceNode) ||
+                !CODE_ANNOTATION.equals(simpleNameReferenceNode.name().text())) {
+            return false;
+        }
+
+        return isAnnotationsModule(semanticModel.symbol(node).get().getModule().get());
+    }
+
+    private static boolean isAnnotationsModule(ModuleSymbol moduleSymbol) {
+        ModuleID moduleId = moduleSymbol.id();
+        return ORG_NAME.equals(moduleId.orgName()) && LANG_ANNOTATIONS_MODULE.equals(moduleId.moduleName());
     }
 }

@@ -88,7 +88,7 @@ public class CompilerPluginTest {
         Assert.assertEquals(index, errorDiagnosticsList.size());
     }
 
-    @Test
+    @Test(enabled = false)
     public void testCodeGenWithCodeAnnotationDisallowingProject() {
         Package codeAnnotationNegativePackage =
                 loadPackage(RESOURCE_DIRECTORY
@@ -103,14 +103,15 @@ public class CompilerPluginTest {
     }
 
     @Test
-    public void testCodeGenWithCodeAnnotationDisallowingFile() {
+    public void testCodeGenInSingleBalFileMode() {
         Package codeAnnotationNegativeFile =
                 loadSingleFileProject("code-annotation-negative", "code_annotation_negative_file.bal");
         List<Diagnostic> fileDiagnosticsList =
                 codeAnnotationNegativeFile.runCodeGenAndModifyPlugins().diagnostics().stream().toList();
         int index = 0;
         assertDiagnostic(fileDiagnosticsList, index++,
-                "code generation with the 'code' annotation is not yet supported", 22, 52);
+                "code generation with the 'code' annotation is not supported in single bal file mode",
+                22, 52);
         Assert.assertEquals(index, fileDiagnosticsList.size());
     }
 

@@ -22,6 +22,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -56,6 +57,8 @@ public class CodeGenerationUtils {
             return generatedFunctionSrc;
         } catch (URISyntaxException e) {
             throw new RuntimeException("Failed to generate code, invalid URI for Copilot");
+        } catch (ConnectException e) {
+            throw new RuntimeException("Failed to connect to Copilot services");
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("Failed to generate code: " + e.getMessage());
         }
