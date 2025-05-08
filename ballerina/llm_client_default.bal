@@ -47,9 +47,23 @@ isolated distinct client class DefaultBallerinaModel {
     }
 
     isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
+        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
+        AzureOpenAICreateChatCompletionRequest chatBody = {
+            messages: [{role: "user", content: buildPromptString(prompt)}],
+            tools: getTools(schemaResponse.schema),
+            tool_choice: getToolChoice()
+        };
+        
+        int retryCount = 0;
+        return self.processDefaultAzureOpenAIRequest(chatBody, schemaResponse, expectedResponseTypedesc, retryCount);
+    }
+
+    isolated function processDefaultAzureOpenAIRequest(AzureOpenAICreateChatCompletionRequest chatBody, 
+                SchemaResponse schemaResponse, typedesc<anydata> expectedResponseTypedesc, 
+            int retryCount) returns anydata|error {
         http:Client cl = self.cl;
-        http:Response chatResponse = 
-            check cl->/chat/complete.post(getPromptWithExpectedResponseSchema(prompt, expectedResponseTypedesc));
+        http:Response chatResponse = check cl->/chat/complete.post(chatBody);
+
         int statusCode = chatResponse.statusCode;
         if statusCode == UNAUTHORIZED {
             return error("The default Ballerina model is being used. The token has expired and needs to be regenerated.");
@@ -62,8 +76,29 @@ isolated distinct client class DefaultBallerinaModel {
         ChatCompletionResponse chatCompleteResponse = check (check chatResponse.getJsonPayload()).cloneWithType();
         string[]? content = chatCompleteResponse?.content;
         if content is () {
-            return error("No completion message");
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
-        return parseResponseAsType(content[0], expectedResponseTypedesc);
+
+        string resp = content[0];
+        anydata|error result = parseResponseAsType(resp, expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
+        if result is anydata {
+            return result;
+        }
+
+        if retryCount >= maxRetries {
+            return handleParseResponseError(result);
+        }
+
+        AzureOpenAIChatCompletionRequestMessage[] messages = chatBody.messages;
+        messages.push({role: "assistant", content: resp});
+        messages.push({role: "user", content: generateRepairResponseForLLM(result)});
+        
+        AzureOpenAICreateChatCompletionRequest updatedRequest = {
+            messages,
+            tools: getTools(schemaResponse.schema),
+            tool_choice: getToolChoice()
+        };
+        
+        return self.processDefaultAzureOpenAIRequest(updatedRequest, schemaResponse, expectedResponseTypedesc, retryCount + 1);
     }
 }

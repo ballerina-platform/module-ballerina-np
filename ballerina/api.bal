@@ -20,6 +20,9 @@ import ballerina/jballerina.java;
 # specified in the natural expression.
 configurable DefaultModelConfig? defaultModelConfig = ();
 
+# Maximum number of retries. Defaults to 0
+configurable int maxRetries = 0;
+
 # Raw template type for prompts.
 public type Prompt object {
     *object:RawTemplate;

@@ -36,27 +36,65 @@ isolated distinct client class OpenAIModel {
         http:ClientConfiguration httpClientConfig = buildHttpClientConfig(connectionConfig);
         httpClientConfig.auth = connectionConfig.auth;
         self.cl = check new (openAIModelConfig.serviceUrl ?: "https://api.openai.com/v1", httpClientConfig);
-        self.model = model;        
+        self.model = model;
     }
 
-    isolated remote function chat(OpenAICreateChatCompletionRequest chatBody) 
+    isolated remote function chat(OpenAICreateChatCompletionRequest chatBody)
             returns OpenAICreateChatCompletionResponse|error {
         return self.cl->/chat/completions.post(chatBody);
     }
 
     isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
+        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
         OpenAICreateChatCompletionRequest chatBody = {
-            messages: [{role: "user", "content": getPromptWithExpectedResponseSchema(prompt, expectedResponseTypedesc)}],
-            model: self.model
+            messages: [{role: "user", "content": buildPromptString(prompt)}],
+            model: self.model,
+            tools: getToolsForGenerateTheLlmResult(schemaResponse.schema),
+            tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
+        int retryCount = 0;
+
+        return self.processOpenAIRequest(chatBody, schemaResponse, expectedResponseTypedesc, retryCount);
+    }
+
+    isolated function processOpenAIRequest(OpenAICreateChatCompletionRequest chatBody, 
+                SchemaResponse schemaResponse, typedesc<anydata> expectedResponseTypedesc, 
+                int retryCount) returns anydata|error {
         OpenAICreateChatCompletionResponse chatResult = check self->chat(chatBody);
         OpenAICreateChatCompletionResponse_choices[] choices = chatResult.choices;
+        ChatCompletionMessageToolCalls? toolCalls = choices[0].message?.tool_calls;
 
-        string? resp = choices[0].message?.content;
-        if resp is () {
-            return error("No completion message");
+        if toolCalls is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
-        return parseResponseAsType(resp, expectedResponseTypedesc);
+
+        string? resp = toolCalls[0].'function.arguments;
+
+        if resp is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+
+        anydata|error result = parseResponseAsType(resp, expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
+        if result is anydata {
+            return result;
+        }
+
+        if retryCount >= maxRetries {
+            return handleParseResponseError(result);
+        }
+
+        OpenAIChatCompletionRequestUserMessage[] messages = chatBody.messages;
+        messages.push({role: "assistant", content: resp});
+        messages.push({role: "user", content: generateRepairResponseForLLM(result)});
+
+        OpenAICreateChatCompletionRequest updatedRequest = {
+            messages,
+            model: self.model,
+            tools: getTools(schemaResponse.schema),
+            tool_choice: getToolChoice()
+        };
+
+        return self.processOpenAIRequest(updatedRequest, schemaResponse, expectedResponseTypedesc, retryCount + 1);
     }
 }
