@@ -86,6 +86,31 @@ type OpenAIChatCompletionRequestUserMessage record {
     string name?;
 };
 
+type FunctionParameters record {
+};
+
+type FunctionObject record {
+    string description?;
+    string name;
+    FunctionParameters parameters?;
+};
+
+type AssistantsNamedToolChoice_function record {
+    string name;
+};
+
+type ChatCompletionNamedToolChoice record {
+    FUNCTION 'type = FUNCTION;
+    AssistantsNamedToolChoice_function 'function;
+};
+
+type ChatCompletionToolChoiceOption ChatCompletionNamedToolChoice;
+
+type ChatCompletionTool record {
+    FUNCTION 'type = FUNCTION;
+    FunctionObject 'function;
+};
+
 type OpenAICreateChatCompletionRequest record {
     OpenAIChatCompletionRequestUserMessage[1] messages;
     string model;
@@ -98,10 +123,26 @@ type OpenAICreateChatCompletionRequest record {
     boolean? 'stream = false;
     decimal? temperature = 1;
     decimal? top_p = 1;
+    ChatCompletionTool[] tools?;
+    ChatCompletionToolChoiceOption tool_choice?;
 };
+
+type ChatCompletionMessageToolCall_function record {
+    string name;
+    string arguments;
+};
+
+type ChatCompletionMessageToolCalls ChatCompletionMessageToolCall[];
 
 type OpenAIChatCompletionResponseMessage record {
     string? content;
+    ChatCompletionMessageToolCalls tool_calls?;
+};
+
+type ChatCompletionMessageToolCall record {
+    string id;
+    FUNCTION 'type = FUNCTION;
+    ChatCompletionMessageToolCall_function 'function;
 };
 
 type OpenAICreateChatCompletionResponse_choices record {
@@ -155,10 +196,13 @@ type AzureOpenAIChatCompletionRequestMessage record {|
 
 type AzureOpenAICreateChatCompletionRequest record {|
     AzureOpenAIChatCompletionRequestMessage[1] messages;
+    ChatCompletionTool[] tools?;
+    ChatCompletionToolChoiceOption tool_choice?;
 |};
 
 type AzureOpenAIChatCompletionResponseMessage record {
     string? content?;
+    ChatCompletionMessageToolCalls tool_calls?;
 };
 
 type AzureOpenAICreateChatCompletionResponse record {

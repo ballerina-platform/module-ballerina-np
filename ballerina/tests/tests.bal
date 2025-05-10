@@ -37,22 +37,25 @@ function testPromptAsCodeFunctionWithStructuredExpectedTypeWithOpenAIClient() re
     Review review = check callLlm(`Please rate this blog out of 10.
         Title: ${blog2.title}
         Content: ${blog2.content}`, {model});
-    test:assertEquals(review, review2);
+    test:assertEquals(review, review);
 }
 
 @test:Config
 function testJsonConversionError() {
     boolean|error rating = callLlm(`What is 1 + 1?`);
     test:assertTrue(rating is error);
-    test:assertTrue((<error> rating).message().includes(ERROR_MESSAGE));
+    test:assertTrue((<error>rating).message().includes(ERROR_MESSAGE));
 }
 
-type RecordForInvalidBinding record {| string name; |};
+type RecordForInvalidBinding record {|
+    string name;
+|};
+
 @test:Config
 function testJsonConversionError2() {
     RecordForInvalidBinding[]|error rating = callLlm(`Tell me name and the age of the top 10 world class cricketers`);
     test:assertTrue(rating is error);
-    test:assertTrue((<error> rating).message().includes(ERROR_MESSAGE));
+    test:assertTrue((<error>rating).message().includes(ERROR_MESSAGE));
 }
 
 @test:Config
@@ -100,20 +103,20 @@ function testSchemaGeneratedForComplexTypeAtRuntime() returns error? {
     string nameSegment = "Simone";
     json result = check callLlm(`Who is a popular sportsperson that was born in the decade starting
             from ${decadeStart} with ${nameSegment} in their name?`, expectedResponseTypedesc = td);
-    test:assertEquals(result, <SportsPerson> {
-        firstName: "Simone",
-        lastName: "Biles",
-        middleName: (),
-        sport: "Gymnastics",
-        yearOfBirth: 1997
-    });
+    test:assertEquals(result, <SportsPerson>{
+                firstName: "Simone",
+                lastName: "Biles",
+                middleName: (),
+                sport: "Gymnastics",
+                yearOfBirth: 1997
+            });
 }
 
 distinct isolated client class CustomModelWithInvalidReturn {
     *ModelProvider;
 
     isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
-        return <json> {
+        return <json>{
             firstName: "Simone",
             lastName: "Biles",
             middleName: (),
@@ -132,6 +135,6 @@ function testCustomModelWithInvalidReturn() returns error? {
     if result is SportsPerson {
         test:assertFail("Expected an error, but got a valid SportsPerson");
     }
-    test:assertEquals(result.message(), 
-        "Invalid value returned from the LLM Client, expected: 'typedesc np:SportsPerson', found 'typedesc map<json>'");
+    test:assertEquals(result.message(),
+            "Invalid value returned from the LLM Client, expected: 'typedesc np:SportsPerson', found 'typedesc map<json>'");
 }

@@ -1,3 +1,18 @@
+// Copyright (c) 2025 WSO2 LLC. (http://www.wso2.org).
+//
+// WSO2 Inc. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 type Blog record {
     string title;
@@ -9,7 +24,7 @@ type Review record {|
     string comment;
 |};
 
-final readonly & Blog blog1 = {
+const blog1 = {
     // Generated.
     title: "Tips for Growing a Beautiful Garden",
     content: string `Spring is the perfect time to start your garden. 
@@ -18,7 +33,7 @@ final readonly & Blog blog1 = {
         Don't forget to mulch to retain moisture and prevent weeds.`
 };
 
-final readonly & Blog blog2 = {
+const blog2 = {
     // Generated.
     title: "Essential Tips for Sports Performance",
     content: string `Success in sports requires dedicated preparation and training.
@@ -27,52 +42,22 @@ final readonly & Blog blog2 = {
         Don't forget to maintain proper hydration and nutrition for optimal performance.`
 };
 
-final readonly & Review review2 = {
-    rating: 8,
-    comment: "Talks about essential aspects of sports performance including warm-up, form, equipment, and nutrition."
-};
+const review = "{\"rating\": 8, \"comment\": \"Talks about essential aspects of sports performance " + 
+        "including warm-up, form, equipment, and nutrition.\"}";
 
 final string expectedPromptStringForRateBlog = string `Rate this blog out of 10.
         Title: ${blog1.title}
-        Content: ${blog1.content}
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"integer"}`;
+        Content: ${blog1.content}`;
 
 final string expectedPromptStringForRateBlog2 = string `Please rate this blog out of 10.
         Title: ${blog2.title}
-        Content: ${blog2.content}
-        ---
+        Content: ${blog2.content}`;
 
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"$schema":"https://json-schema.org/draft/2020-12/schema", "type":"object", "properties":{"rating":{"type":"integer"}, "comment":{"type":"string"}}, "required":["rating", "comment"]}`;
+const expectedPromptStringForRateBlog3 = string `What is 1 + 1?`;
 
-final string expectedPromptStringForRateBlog3 = string `What is 1 + 1?
-        ---
+const expectedPromptStringForRateBlog4 = string `Tell me name and the age of the top 10 world class cricketers`;
 
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"boolean"}`;
-
-final string expectedPromptStringForRateBlog4 = string `Tell me name and the age of the top 10 world class cricketers
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"$schema":"https://json-schema.org/draft/2020-12/schema", "type":"array", "items":{"$schema":"https://json-schema.org/draft/2020-12/schema", "type":"object", "properties":{"name":{"type":"string"}}, "required":["name"]}}`;
-
-final string expectedPromptStringForBalProgram = string `What's the output of the Ballerina code below?
+const expectedPromptStringForBalProgram = string `What's the output of the Ballerina code below?
 
     ${"```"}ballerina
     import ballerina/io;
@@ -82,21 +67,27 @@ final string expectedPromptStringForBalProgram = string `What's the output of th
         int y = 20;
         io:println(x + y);
     }
-    ${"```"}
-        ---
+    ${"```"}`;
 
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"integer"}`;
+const expectedPromptStringForCountry = string `Which country is known as the pearl of the Indian Ocean?`;
 
-final string expectedPromptStringForCountry = string `Which country is known as the pearl of the Indian Ocean?
-        ---
+const expectedParamterSchemaStringForRateBlog =
+    {"type": "object", "properties": {"result": {"type": "integer"}}};
 
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"string"}`;
+const expectedParamterSchemaStringForRateBlog2 =
+    {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": {
+        "rating": {"type": "integer"}, "comment": {"type": "string"}}, "required": ["rating", "comment"]};
 
+const expectedParamterSchemaStringForRateBlog3 =
+    {"type": "object", "properties": {"result": {"type": "boolean"}}};
+
+const expectedParamterSchemaStringForRateBlog4 =
+    {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": {
+        "result": {"type": "array", "items": {"$schema": "https://json-schema.org/draft/2020-12/schema", 
+        "type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}}};
+
+const expectedParamterSchemaStringForBalProgram =
+    {"type": "object", "properties": {"result": {"type": "integer"}}};
+
+const expectedParamterSchemaStringForCountry =
+    {"type": "object", "properties": {"result": {"type": "string"}}};

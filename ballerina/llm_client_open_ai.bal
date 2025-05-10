@@ -36,27 +36,37 @@ isolated distinct client class OpenAIModel {
         http:ClientConfiguration httpClientConfig = buildHttpClientConfig(connectionConfig);
         httpClientConfig.auth = connectionConfig.auth;
         self.cl = check new (openAIModelConfig.serviceUrl ?: "https://api.openai.com/v1", httpClientConfig);
-        self.model = model;        
+        self.model = model;
     }
 
-    isolated remote function chat(OpenAICreateChatCompletionRequest chatBody) 
+    isolated remote function chat(OpenAICreateChatCompletionRequest chatBody)
             returns OpenAICreateChatCompletionResponse|error {
         return self.cl->/chat/completions.post(chatBody);
     }
 
     isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
+        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
         OpenAICreateChatCompletionRequest chatBody = {
-            messages: [{role: "user", "content": getPromptWithExpectedResponseSchema(prompt, expectedResponseTypedesc)}],
-            model: self.model
+            messages: [{role: "user", "content": buildPromptString(prompt)}],
+            model: self.model,
+            tools: getGetLlmResultTool(schemaResponse.schema),
+            tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
         OpenAICreateChatCompletionResponse chatResult = check self->chat(chatBody);
         OpenAICreateChatCompletionResponse_choices[] choices = chatResult.choices;
+        ChatCompletionMessageToolCalls? toolCalls = choices[0].message?.tool_calls;
 
-        string? resp = choices[0].message?.content;
-        if resp is () {
-            return error("No completion message");
+        if toolCalls is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
-        return parseResponseAsType(resp, expectedResponseTypedesc);
+
+        string? resp = toolCalls[0].'function.arguments;
+
+        if resp is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+
+        return parseResponseAsType(resp, expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
     }
 }

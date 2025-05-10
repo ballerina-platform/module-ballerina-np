@@ -41,14 +41,14 @@ isolated distinct client class AzureOpenAIModel {
 
         http:BearerTokenConfig|ApiKeysConfig auth = connectionConfig.auth;
         self.headers = auth is ApiKeysConfig ? {"api-key": auth?.apiKey} : {};
-        
+
         self.cl = check new (azureOpenAIModelConfig.serviceUrl, httpClientConfig);
 
         self.deploymentId = deploymentId;
         self.apiVersion = apiVersion;
     }
 
-    isolated remote function chat(AzureOpenAICreateChatCompletionRequest chatBody) 
+    isolated remote function chat(AzureOpenAICreateChatCompletionRequest chatBody)
             returns AzureOpenAICreateChatCompletionResponse|error {
         string resourcePath = string `/deployments/${check getEncodedUri(self.deploymentId)}/chat/completions`;
         resourcePath = string `${resourcePath}?${check getEncodedUri("api-version")}=${self.apiVersion}`;
@@ -56,8 +56,11 @@ isolated distinct client class AzureOpenAIModel {
     }
 
     isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
+        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
         AzureOpenAICreateChatCompletionRequest chatBody = {
-            messages: [{role: "user", content: getPromptWithExpectedResponseSchema(prompt, expectedResponseTypedesc)}]
+            messages: [{role: "user", content: buildPromptString(prompt)}],
+            tools: getGetLlmResultTool(schemaResponse.schema),
+            tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
         AzureOpenAICreateChatCompletionResponse chatResult = check self->chat(chatBody);
@@ -69,10 +72,18 @@ isolated distinct client class AzureOpenAIModel {
             return error("No completion choices");
         }
 
-        string? resp = choices[0].message?.content;
-        if resp is () {
-            return error("No completion message");
+        ChatCompletionMessageToolCalls? toolCalls = choices[0].message?.tool_calls;
+
+        if toolCalls is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
-        return parseResponseAsType(resp, expectedResponseTypedesc);
+
+        string? resp = toolCalls[0].'function.arguments;
+
+        if resp is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+
+        return parseResponseAsType(resp, expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
     }
 }
