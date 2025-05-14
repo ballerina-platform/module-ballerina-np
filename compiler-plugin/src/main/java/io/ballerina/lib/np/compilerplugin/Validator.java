@@ -46,9 +46,9 @@ import static io.ballerina.lib.np.compilerplugin.Commons.ORG_NAME;
 import static io.ballerina.lib.np.compilerplugin.Commons.VERSION;
 import static io.ballerina.lib.np.compilerplugin.Commons.isCodeAnnotation;
 import static io.ballerina.lib.np.compilerplugin.Commons.isNotNPCallCall;
+import static io.ballerina.lib.np.compilerplugin.Commons.isRuntimeNaturalExpression;
 import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode
         .CODE_GEN_WITH_CODE_ANNOT_NOT_SUPPORTED_IN_SINGLE_BAL_FILE_MODE;
-import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode.CONST_NATURAL_EXPR_NOT_YET_SUPPORTED;
 import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode.EXPECTED_A_SUBTYPE_OF_NP_MODEL;
 import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode.NON_JSON_EXPECTED_TYPE_NOT_YET_SUPPORTED;
 import static io.ballerina.lib.np.compilerplugin.DiagnosticLog.DiagnosticCode
@@ -102,15 +102,14 @@ public class Validator implements AnalysisTask<SyntaxNodeAnalysisContext> {
                                            NaturalExpressionNode naturalExpressionNode,
                                            Optional<Symbol> modelSymbol,
                                            SyntaxNodeAnalysisContext ctx) {
-        if (naturalExpressionNode.constKeyword().isPresent()) {
-            reportError(ctx, this.analysisData, naturalExpressionNode.location(), CONST_NATURAL_EXPR_NOT_YET_SUPPORTED);
-            return;
-        }
-
         validateArguments(ctx, semanticModel, naturalExpressionNode.parenthesizedArgList(), modelSymbol);
-        validateExpectedType(naturalExpressionNode.location(),
-                semanticModel.expectedType(document, naturalExpressionNode.lineRange().startLine()).get(),
-                types, ctx);
+
+        if (isRuntimeNaturalExpression(naturalExpressionNode)) {
+            validateExpectedType(naturalExpressionNode.location(),
+                    semanticModel.expectedType(document, naturalExpressionNode.lineRange().startLine()).get(),
+                    types, ctx);
+
+        }
     }
 
     private void validateArguments(SyntaxNodeAnalysisContext ctx,

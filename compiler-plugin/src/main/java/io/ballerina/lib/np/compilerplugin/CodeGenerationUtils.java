@@ -20,6 +20,14 @@ package io.ballerina.lib.np.compilerplugin;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.ballerina.compiler.api.SemanticModel;
+import io.ballerina.compiler.api.symbols.ConstantSymbol;
+import io.ballerina.compiler.api.symbols.TypeSymbol;
+import io.ballerina.compiler.syntax.tree.InterpolationNode;
+import io.ballerina.compiler.syntax.tree.LiteralValueToken;
+import io.ballerina.compiler.syntax.tree.NaturalExpressionNode;
+import io.ballerina.compiler.syntax.tree.Node;
+import io.ballerina.compiler.syntax.tree.NodeList;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -37,11 +45,12 @@ import java.util.stream.Stream;
  */
 public class CodeGenerationUtils {
 
-    static String generateCode(String copilotUri, String diagnosticsServiceUri, String originalFuncName,
-                               String generatedFuncName, String prompt, HttpClient client, JsonArray sourceFiles) {
+    static String generateCodeForFunction(String copilotUri, String diagnosticsServiceUri, String originalFuncName,
+                                          String generatedFuncName, String prompt, HttpClient client,
+                                          JsonArray sourceFiles) {
         try {
             String generatedPrompt = generatePrompt(originalFuncName, generatedFuncName, prompt);
-            GeneratedCode generatedCode = generatedCode(copilotUri, client, sourceFiles, generatedPrompt);
+            GeneratedCode generatedCode = generateCode(copilotUri, client, sourceFiles, generatedPrompt);
             JsonArray diagnostics = getDiagnostics(diagnosticsServiceUri, client, sourceFiles);
             String repairResponse = repairCode(copilotUri, generatedFuncName, client, sourceFiles, generatedPrompt,
                     generatedCode, diagnostics);
@@ -64,8 +73,27 @@ public class CodeGenerationUtils {
         }
     }
 
-    private static GeneratedCode generatedCode(String copilotUri, HttpClient client, JsonArray sourceFiles,
-                                               String generatedPrompt)
+    static String generateCodeForNaturalExpression(String copilotUri,
+                                                   TypeSymbol expectedType, NaturalExpressionNode naturalExpressionNode,
+                                                   HttpClient client, JsonArray sourceFiles,
+                                                   SemanticModel semanticModel) {
+        try {
+            String generatedPrompt = generatePrompt(naturalExpressionNode, expectedType, semanticModel);
+            GeneratedCode generatedCode = generateCode(copilotUri, client, sourceFiles, generatedPrompt);
+            // TODO: check if we need to call repair, could get complicated.
+            // TODO: validate generated code to ensure only literals and constructors are present, regenerate if not.
+            return generatedCode.code;
+        } catch (URISyntaxException e) {
+            throw new RuntimeException("Failed to generate code, invalid URI for Copilot");
+        } catch (ConnectException e) {
+            throw new RuntimeException("Failed to connect to Copilot services");
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("Failed to generate code: " + e.getMessage());
+        }
+    }
+
+    private static GeneratedCode generateCode(String copilotUri, HttpClient client, JsonArray sourceFiles,
+                                              String generatedPrompt)
             throws URISyntaxException, IOException, InterruptedException {
         JsonObject codeGenerationPayload = constructCodeGenerationPayload(generatedPrompt, sourceFiles);
         HttpRequest codeGenerationRequest = HttpRequest.newBuilder()
@@ -167,6 +195,46 @@ public class CodeGenerationUtils {
                         generated code, nothing else. Ensure that there are NO compile-time errors.
                         Where possible, use query expressions over verbose foreach loops.""",
                 generatedFuncName, originalFuncName, prompt, generatedFuncName, originalFuncName);
+    }
+
+    private static String generatePrompt(NaturalExpressionNode naturalExpressionNode,
+                                         TypeSymbol expectedType, SemanticModel semanticModel) {
+        NodeList<Node> userPromptContent = naturalExpressionNode.prompt();
+        StringBuilder sb = new StringBuilder(String.format("""
+                Generate a value expression to satisfy the following requirement using only Ballerina literals and
+                constructor expressions. The expression should be self-contained and should not have references.
+                
+                Ballerina literals:
+                1. nil-literal :=  () | null
+                2. boolean-literal := true | false
+                3. numeric-literal - int, float, and decimal values (e.g., 1, 2.0, 3f, 4.5d)
+                4. string-literal - double quoted strings (e.g., "foo") or
+                    string-template literal without interpolations (e.g., string `foo`)
+                
+                Ballerina constructor expressions:
+                1. List constructor expression - e.g., [1, 2]
+                2. Mapping constructor expression - e.g., {a: 1, b: 2, "c": 3}
+                3. Table constructor expression - e.g., table [{a: 1, b: 2}, {a: 2, b: 4}]
+                
+                The value should belong to the type '%s'. This value will be used in the code in place of the
+                `const natural {...}` expression with the requirement.
+                
+                Respond with ONLY THE VALUE EXPRESSION.
+                
+                Requirement:
+                """, expectedType.signature()));
+
+        for (int i = 0; i < userPromptContent.size(); i++) {
+            Node node = userPromptContent.get(i);
+            if (node instanceof LiteralValueToken literalValueToken) {
+                sb.append(literalValueToken.text());
+                continue;
+            }
+
+            sb.append(((ConstantSymbol) semanticModel.symbol(((InterpolationNode) node).expression()).get())
+                    .resolvedValue().get());
+        }
+        return sb.toString();
     }
 
     private static JsonObject constructCodeReparationPayload(String generatedPrompt, String generatedFuncName,
