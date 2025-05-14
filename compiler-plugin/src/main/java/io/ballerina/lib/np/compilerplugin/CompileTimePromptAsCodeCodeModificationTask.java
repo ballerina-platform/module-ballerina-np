@@ -99,8 +99,13 @@ public class CompileTimePromptAsCodeCodeModificationTask implements ModifierTask
     private static final String GENERATED_FUNC_FILE_NAME_SUFFIX = "_np_generated" + BAL_EXT;
     private static final String FILE_PATH = "filePath";
 
-    private static String copilotUri = "http://localhost:9094/ai"; // TODO
-    private static String diagnosticsServiceUri = "http://localhost:8080"; // TODO
+    private static final String copilotUri;
+    private static final String diagnosticsServiceUri;
+
+    static {
+        copilotUri = System.getenv(BAL_COPILOT_URI);
+        diagnosticsServiceUri = System.getenv(BAL_DIAGNOSTICS_SERVER_URI);
+    }
 
     @Override
     public void modify(SourceModifierContext modifierContext) {

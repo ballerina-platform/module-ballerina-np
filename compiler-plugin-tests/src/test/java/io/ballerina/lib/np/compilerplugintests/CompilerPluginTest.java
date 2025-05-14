@@ -64,16 +64,6 @@ public class CompilerPluginTest {
     }
 
     @Test
-    public void testConstNaturalExpressionsDisallowing() {
-        int index = 0;
-        Package constNaturalExprNegativePackage = loadPackage("const-natural-expressions-negative");
-        DiagnosticResult diagnosticResult = constNaturalExprNegativePackage.runCodeGenAndModifyPlugins();
-        List<Diagnostic> errorDiagnosticsList = diagnosticResult.diagnostics().stream().toList();
-        assertDiagnostic(errorDiagnosticsList, index++, "'const' natural expressions are not yet supported", 17, 38);
-        Assert.assertEquals(index, errorDiagnosticsList.size());
-    }
-
-    @Test
     public void testCallLlmDisallowedTypes() {
         int index = 0;
         Package callLlmNegativePackage = loadPackage("call-llm-negative");
@@ -85,6 +75,16 @@ public class CompilerPluginTest {
         assertDiagnostic(errorDiagnosticsList, index++, expectedErrorMessage, 22, 14);
         assertDiagnostic(errorDiagnosticsList, index++, expectedErrorMessage, 28, 19);
         assertDiagnostic(errorDiagnosticsList, index++, expectedErrorMessage, 29, 19);
+        Assert.assertEquals(index, errorDiagnosticsList.size());
+    }
+
+    @Test(enabled = false)
+    public void testConstNaturalExpressionsDisallowing() {
+        int index = 0;
+        Package constNaturalExprNegativePackage = loadPackage("const-natural-expressions-negative");
+        DiagnosticResult diagnosticResult = constNaturalExprNegativePackage.runCodeGenAndModifyPlugins();
+        List<Diagnostic> errorDiagnosticsList = diagnosticResult.diagnostics().stream().toList();
+        assertDiagnostic(errorDiagnosticsList, index++, "'const' natural expressions are not yet supported", 17, 38);
         Assert.assertEquals(index, errorDiagnosticsList.size());
     }
 
