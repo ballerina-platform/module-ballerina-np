@@ -139,17 +139,20 @@ public class CompileTimePromptAsCodeCodeModificationTask implements ModifierTask
     private static TextDocument modifyDocument(Document document, SemanticModel semanticModel, Module module,
                                                boolean isSingleBalFileMode, Path sourceRoot) {
         ModulePartNode modulePartNode = document.syntaxTree().rootNode();
+        List<ImportDeclarationNode> newImports = new ArrayList<>();
         List<ModuleMemberDeclarationNode> newMembers = new ArrayList<>();
-        CodeGenerator codeGenerator =
-                new CodeGenerator(semanticModel, module, newMembers, isSingleBalFileMode, sourceRoot, document);
+        CodeGenerator codeGenerator = new CodeGenerator(semanticModel, module, newImports,
+                newMembers, isSingleBalFileMode, sourceRoot, document);
         ModulePartNode newRoot = (ModulePartNode) modulePartNode.apply(codeGenerator);
-        newRoot = newRoot.modify(newRoot.imports(), newRoot.members().addAll(newMembers), newRoot.eofToken());
+        newRoot = newRoot.modify(
+                newRoot.imports().addAll(newImports), newRoot.members().addAll(newMembers), newRoot.eofToken());
         return document.syntaxTree().modifyWith(newRoot).textDocument();
     }
 
     private static class CodeGenerator extends BaseNodeModifier {
         private final SemanticModel semanticModel;
         private final Module module;
+        private final List<ImportDeclarationNode> newImports;
         private final List<ModuleMemberDeclarationNode> newMembers;
         private final boolean isSingleBalFileMode;
         private final Path sourceRoot;
@@ -159,10 +162,12 @@ public class CompileTimePromptAsCodeCodeModificationTask implements ModifierTask
         private JsonArray sourceFiles = null;
 
         public CodeGenerator(SemanticModel semanticModel, Module module,
-                             List<ModuleMemberDeclarationNode> newMembers, boolean isSingleBalFileMode,
+                             List<ImportDeclarationNode> newImports, List<ModuleMemberDeclarationNode> newMembers,
+                             boolean isSingleBalFileMode,
                              Path sourceRoot, Document document) {
             this.semanticModel = semanticModel;
             this.module = module;
+            this.newImports = newImports;
             this.newMembers = newMembers;
             this.isSingleBalFileMode = isSingleBalFileMode;
             this.sourceRoot = sourceRoot;
@@ -243,10 +248,10 @@ public class CompileTimePromptAsCodeCodeModificationTask implements ModifierTask
         }
 
         private void handleGeneratedCode(String originalFuncName, String generatedCode) {
-            ModuleMemberDeclarationNode moduleMemberDeclarationNode =
-                    NodeParser.parseModuleMemberDeclaration(generatedCode);
-            persistInGeneratedDirectory(originalFuncName, moduleMemberDeclarationNode);
-            this.newMembers.add(moduleMemberDeclarationNode);
+            ModulePartNode modulePartNode = NodeParser.parseModulePart(generatedCode);
+            persistInGeneratedDirectory(originalFuncName, generatedCode);
+            this.newImports.addAll(modulePartNode.imports().stream().toList());
+            this.newMembers.addAll(modulePartNode.members().stream().toList());
         }
 
         private HttpClient getHttpClient() {
@@ -292,7 +297,7 @@ public class CompileTimePromptAsCodeCodeModificationTask implements ModifierTask
         }
 
         private void persistInGeneratedDirectory(String originalFuncName,
-                                                 ModuleMemberDeclarationNode moduleMemberDeclarationNode) {
+                                                 String generatedCode) {
             Path generatedDirPath = Paths.get(this.sourceRoot.toString(), GENERATED_DIRECTORY);
             if (!Files.exists(generatedDirPath)) {
                 try {
@@ -306,7 +311,7 @@ public class CompileTimePromptAsCodeCodeModificationTask implements ModifierTask
             try (PrintWriter writer = new PrintWriter(
                     Paths.get(generatedDirPath.toString(), getGeneratedBalFileName(originalFuncName)).toString(),
                     StandardCharsets.UTF_8)) {
-                writer.println(Formatter.format(moduleMemberDeclarationNode.toSourceCode()));
+                writer.println(Formatter.format(generatedCode));
             } catch (IOException | FormatterException e) {
                 // Shouldn't be a showstopper?
                 return;

@@ -160,8 +160,7 @@ public class CodeGenerationUtils {
         }
 
         String responseBodyString = responseBody.toString();
-        String code = extractBallerinaCodeSnippet(responseBodyString);
-        return new GeneratedCode(code, functions);
+        return new GeneratedCode(extractBallerinaCodeSnippet(responseBodyString), functions);
     }
 
     private static boolean hasBallerinaCodeSnippet(String responseBodyString) {
@@ -193,7 +192,9 @@ public class CodeGenerationUtils {
                         Use only the parameters passed to the function and module-level clients that are clients \
                         from the ballerina and ballerinax module in the generated code. Respond with only the \
                         generated code, nothing else. Ensure that there are NO compile-time errors.
-                        Where possible, use query expressions over verbose foreach loops.""",
+                        
+                        Respond with ONLY THE GENERATED FUNCTION AND ANY IMPORTS REQUIRED BY THE GENERATED FUNCTION.
+                        """,
                 generatedFuncName, originalFuncName, prompt, generatedFuncName, originalFuncName);
     }
 
