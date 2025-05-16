@@ -51,6 +51,10 @@ class Commons {
     static final String LANG_ANNOTATIONS_MODULE = "lang.annotations";
     static final String CODE_ANNOTATION = "code";
 
+    static final String BAL_EXT = ".bal";
+    static final String FILE_PATH = "filePath";
+    static final String CONTENT = "content";
+
     static boolean isRuntimeNaturalExpression(ExpressionNode expressionNode) {
         return expressionNode instanceof NaturalExpressionNode naturalExpressionNode &&
                 naturalExpressionNode.constKeyword().isEmpty();
