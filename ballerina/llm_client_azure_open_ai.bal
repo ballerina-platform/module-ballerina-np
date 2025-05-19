@@ -41,14 +41,14 @@ isolated distinct client class AzureOpenAIModel {
 
         http:BearerTokenConfig|ApiKeysConfig auth = connectionConfig.auth;
         self.headers = auth is ApiKeysConfig ? {"api-key": auth?.apiKey} : {};
-        
+
         self.cl = check new (azureOpenAIModelConfig.serviceUrl, httpClientConfig);
 
         self.deploymentId = deploymentId;
         self.apiVersion = apiVersion;
     }
 
-    isolated remote function chat(AzureOpenAICreateChatCompletionRequest chatBody) 
+    isolated remote function chat(AzureOpenAICreateChatCompletionRequest chatBody)
             returns AzureOpenAICreateChatCompletionResponse|error {
         string resourcePath = string `/deployments/${check getEncodedUri(self.deploymentId)}/chat/completions`;
         resourcePath = string `${resourcePath}?${check getEncodedUri("api-version")}=${self.apiVersion}`;
@@ -56,10 +56,20 @@ isolated distinct client class AzureOpenAIModel {
     }
 
     isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
+        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
         AzureOpenAICreateChatCompletionRequest chatBody = {
-            messages: [{role: "user", content: getPromptWithExpectedResponseSchema(prompt, expectedResponseTypedesc)}]
+            messages: [{role: "user", content: buildPromptString(prompt)}],
+            tools: getToolsForGenerateTheLlmResult(schemaResponse.schema),
+            tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
+	    int retryCount = 0;
+        return self.processAzureOpenAIRequest(chatBody, schemaResponse, expectedResponseTypedesc, retryCount);
+    }
+
+    isolated function processAzureOpenAIRequest(
+            AzureOpenAICreateChatCompletionRequest chatBody, SchemaResponse schemaResponse, 
+            typedesc<anydata> expectedResponseTypedesc, int retryCount) returns anydata|error {
         AzureOpenAICreateChatCompletionResponse chatResult = check self->chat(chatBody);
         record {
             AzureOpenAIChatCompletionResponseMessage message?;
@@ -69,10 +79,37 @@ isolated distinct client class AzureOpenAIModel {
             return error("No completion choices");
         }
 
-        string? resp = choices[0].message?.content;
-        if resp is () {
-            return error("No completion message");
+        ChatCompletionMessageToolCalls? toolCalls = choices[0].message?.tool_calls;
+
+        if toolCalls is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
-        return parseResponseAsType(resp, expectedResponseTypedesc);
+
+        string? resp = toolCalls[0].'function.arguments;
+
+        if resp is () {
+            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+
+        anydata|error result = parseResponseAsType(resp, expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
+        if result is anydata {
+            return result;
+        }
+
+        if retryCount >= maxRetries {
+            return handleParseResponseError(result);
+        }
+
+        AzureOpenAIChatCompletionRequestMessage[] messages = chatBody.messages;
+        messages.push({role: "assistant", content: resp});
+        messages.push({role: "user", content: generateRepairResponseForLLM(result)});
+
+        AzureOpenAICreateChatCompletionRequest updatedRequest = {
+            messages,
+            tools: getTools(schemaResponse.schema),
+            tool_choice: getToolChoice()
+        };
+        
+        return self.processAzureOpenAIRequest(updatedRequest, schemaResponse, expectedResponseTypedesc, retryCount + 1);
     }
 }
