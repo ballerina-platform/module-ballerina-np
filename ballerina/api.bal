@@ -31,17 +31,17 @@ public type Prompt object {
     public anydata[] insertions;
 };
 
-# Calls a Large Language Model (LLM) with a given prompt and context and returns 
+# Calls a Large Language Model (LLM) with a given prompt and context and returns
 # the response parsed as the expected type.
 #
 # + prompt - The prompt to send to the LLM
 # + context - The context to use, including the LLM to use
-# + expectedResponseTypedesc - The expected response type. The schema corresponding to this type 
+# + expectedResponseTypedesc - The expected response type. The schema corresponding to this type
 #  is generated to inlcude in the request to the LLM
-# + return - The LLM response parsed according to the specified type, or an error if the call 
+# + return - The LLM response parsed according to the specified type, or an error if the call
 # fails or parsing fails
-public isolated function callLlm(Prompt prompt, 
-                                 Context context = {}, 
+public isolated function callLlm(Prompt prompt,
+                                 Context context = {},
                                  typedesc<anydata> expectedResponseTypedesc = <>)
         returns expectedResponseTypedesc|error = @java:Method {
     'class: "io.ballerina.lib.np.Native"
@@ -59,7 +59,7 @@ public type ModelProvider distinct isolated client object {
     # Makes a call to the Large Language Model (LLM) with the given prompt and returns the result.
     #
     # + prompt - The prompt to be sent to the LLM
-    # + expectedResponseTypedesc - The schema for the expected response from the LLM 
+    # + expectedResponseTypedesc - The schema for the expected response from the LLM
     # + return - The value extracted/parsed from the LLM's response or an error if the call or parsing fails
     // Note: once dependently-typed functions can be implemented in Ballerina, the return type can change
     isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error;

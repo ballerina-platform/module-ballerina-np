@@ -104,7 +104,7 @@ import static io.ballerina.projects.util.ProjectConstants.EMPTY_STRING;
  *
  * @since 0.3.0
  */
-public class PromptAsCodeCodeModificationTask implements ModifierTask<SourceModifierContext> {
+public class RuntimePromptAsCodeCodeModificationTask implements ModifierTask<SourceModifierContext> {
 
     private static final Token OPEN_PAREN = createToken(OPEN_PAREN_TOKEN);
     private static final Token CLOSE_PAREN = createToken(CLOSE_PAREN_TOKEN);
@@ -125,7 +125,7 @@ public class PromptAsCodeCodeModificationTask implements ModifierTask<SourceModi
     private final ModifierData modifierData;
     private final CodeModifier.AnalysisData analysisData;
 
-    PromptAsCodeCodeModificationTask(CodeModifier.AnalysisData analysisData) {
+    RuntimePromptAsCodeCodeModificationTask(CodeModifier.AnalysisData analysisData) {
         this.modifierData = new ModifierData();
         this.analysisData = analysisData;
     }
@@ -257,7 +257,11 @@ public class PromptAsCodeCodeModificationTask implements ModifierTask<SourceModi
         }
 
         @Override
-        public FunctionCallExpressionNode transform(NaturalExpressionNode naturalExpressionNode) {
+        public ExpressionNode transform(NaturalExpressionNode naturalExpressionNode) {
+            if (!isRuntimeNaturalExpression(naturalExpressionNode)) {
+                return naturalExpressionNode;
+            }
+
             Optional<String> npPrefixIfImported = modifierData.npPrefixIfImported;
             String npPrefix;
 
@@ -267,11 +271,7 @@ public class PromptAsCodeCodeModificationTask implements ModifierTask<SourceModi
                 modifierData.documentsRequiringNPImport.add(document);
                 npPrefix = MODULE_NAME;
             }
-
-            // Once const expressions are supported, modification has to change.
-//            if (isRuntimeNaturalExpression(naturalExpressionNode)) {
             return createNPCallFunctionCallExpression(npPrefix, naturalExpressionNode, this.semanticModel);
-//            }
         }
 
         @Override
@@ -656,25 +656,25 @@ public class PromptAsCodeCodeModificationTask implements ModifierTask<SourceModi
 
         Map<String, Schema> properties = schema.getProperties();
         if (properties != null) {
-            properties.values().forEach(PromptAsCodeCodeModificationTask::modifySchema);
+            properties.values().forEach(RuntimePromptAsCodeCodeModificationTask::modifySchema);
         }
 
         List<Schema> allOf = schema.getAllOf();
         if (allOf != null) {
             schema.setType(null);
-            allOf.forEach(PromptAsCodeCodeModificationTask::modifySchema);
+            allOf.forEach(RuntimePromptAsCodeCodeModificationTask::modifySchema);
         }
 
         List<Schema> anyOf = schema.getAnyOf();
         if (anyOf != null) {
             schema.setType(null);
-            anyOf.forEach(PromptAsCodeCodeModificationTask::modifySchema);
+            anyOf.forEach(RuntimePromptAsCodeCodeModificationTask::modifySchema);
         }
 
         List<Schema> oneOf = schema.getOneOf();
         if (oneOf != null) {
             schema.setType(null);
-            oneOf.forEach(PromptAsCodeCodeModificationTask::modifySchema);
+            oneOf.forEach(RuntimePromptAsCodeCodeModificationTask::modifySchema);
         }
 
         // Override default ballerina byte to json schema mapping
