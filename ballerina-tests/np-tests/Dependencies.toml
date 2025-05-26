@@ -267,6 +267,7 @@ name = "np_test_commons"
 version = "0.3.0"
 scope = "testOnly"
 dependencies = [
+	{org = "ballerina", name = "ai"},
 	{org = "ballerina", name = "http"},
 	{org = "ballerina", name = "test"}
 ]
