@@ -9,6 +9,23 @@ distribution-version = "2201.13.0-m1"
 
 [[package]]
 org = "ballerina"
+name = "ai"
+version = "1.0.0"
+dependencies = [
+	{org = "ballerina", name = "file"},
+	{org = "ballerina", name = "http"},
+	{org = "ballerina", name = "io"},
+	{org = "ballerina", name = "jballerina.java"},
+	{org = "ballerina", name = "lang.regexp"},
+	{org = "ballerina", name = "log"},
+	{org = "ballerina", name = "mime"},
+	{org = "ballerina", name = "url"},
+	{org = "ballerina", name = "xmldata"},
+	{org = "ballerina", name = "yaml"}
+]
+
+[[package]]
+org = "ballerina"
 name = "auth"
 version = "2.14.0"
 dependencies = [
@@ -235,6 +252,7 @@ org = "ballerina"
 name = "np"
 version = "0.3.0"
 dependencies = [
+	{org = "ballerina", name = "ai"},
 	{org = "ballerina", name = "http"},
 	{org = "ballerina", name = "jballerina.java"},
 	{org = "ballerina", name = "url"}
@@ -336,5 +354,25 @@ name = "url"
 version = "2.6.0"
 dependencies = [
 	{org = "ballerina", name = "jballerina.java"}
+]
+
+[[package]]
+org = "ballerina"
+name = "xmldata"
+version = "2.9.0"
+dependencies = [
+	{org = "ballerina", name = "jballerina.java"}
+]
+
+[[package]]
+org = "ballerina"
+name = "yaml"
+version = "0.8.0"
+dependencies = [
+	{org = "ballerina", name = "file"},
+	{org = "ballerina", name = "io"},
+	{org = "ballerina", name = "lang.array"},
+	{org = "ballerina", name = "lang.regexp"},
+	{org = "ballerina", name = "log"}
 ]
 
