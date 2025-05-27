@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/test;
 
 const ERROR_MESSAGE = "Error occurred while attempting to parse the response from the LLM as the expected type. Retrying and/or validating the prompt could fix the response.";
@@ -28,7 +29,7 @@ function testPromptAsCodeFunctionWithSimpleExpectedTypeWithDefaultAzureOpenAICli
 
 @test:Config
 function testPromptAsCodeFunctionWithStructuredExpectedTypeWithOpenAIClient() returns error? {
-    ModelProvider model = check new OpenAIModel({
+    ai:ModelProvider model = check new OpenAIModel({
         connectionConfig: {
             auth: {token: "not-a-real-token"}
         },
@@ -113,15 +114,18 @@ function testSchemaGeneratedForComplexTypeAtRuntime() returns error? {
 }
 
 distinct isolated client class CustomModelWithInvalidReturn {
-    *ModelProvider;
+    *ai:ModelProvider;
 
-    isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
-        return <json>{
-            firstName: "Simone",
-            lastName: "Biles",
-            middleName: (),
-            sport: "Gymnastics",
-            yearOfBirth: 1997
+    isolated remote function chat(ai:ChatMessage[] messages, ai:ChatCompletionFunctions[] tools = [], string? stop = ())
+            returns ai:ChatAssistantMessage|ai:LlmError {
+        return {
+            role: "assistant",
+            toolCalls: [
+                {
+                    name: GET_RESULTS_TOOL,
+                    arguments: "{\"firstName\": \"Simone\", \"lastName\": \"Biles\", \"middleName\": 1, \"sport\": \"Gymnastics\", \"yearOfBirth\": 1997}"
+                }
+            ]
         };
     }
 };
@@ -132,9 +136,6 @@ function testCustomModelWithInvalidReturn() returns error? {
     string nameSegment = "Simone";
     SportsPerson|error result = callLlm(`Who is a popular sportsperson that was born in the decade starting
             from ${decadeStart} with ${nameSegment} in their name?`, {model: new CustomModelWithInvalidReturn()});
-    if result is SportsPerson {
-        test:assertFail("Expected an error, but got a valid SportsPerson");
-    }
-    test:assertEquals(result.message(),
-            "Invalid value returned from the LLM Client, expected: 'typedesc np:SportsPerson', found 'typedesc map<json>'");
+    test:assertTrue(result is error);
+    test:assertTrue((<error>result).message().includes(ERROR_MESSAGE));
 }

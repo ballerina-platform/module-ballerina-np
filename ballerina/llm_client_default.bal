@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 
 const UNAUTHORIZED = 401;
@@ -26,13 +27,9 @@ type DefaultBallerinaModelConfig record {|
     string accessToken;
 |};
 
-type ChatCompletionResponse record {
-    string[] content?;
-};
-
 # Default Ballerina model chat completion client.
 isolated distinct client class DefaultBallerinaModel {
-    *ModelProvider;
+    *ai:ModelProvider;
 
     private final http:Client cl;
 
@@ -46,13 +43,18 @@ isolated distinct client class DefaultBallerinaModel {
         });
     }
 
-    isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
+    isolated remote function chat(ai:ChatMessage[] messages, ai:ChatCompletionFunctions[] tools = [], string? stop = ())
+            returns ai:ChatAssistantMessage|ai:LlmError {
         http:Client cl = self.cl;
-        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
-        http:Response chatResponse = check cl->/chat/complete.post({
-            prompt: buildPromptString(prompt),
-            outputSchema: schemaResponse.schema
+        http:Response|error chatResponse = cl->/chat/complete.post({
+            messages,
+            tools
         });
+
+        if chatResponse is error {
+            return error("LLM call failed: " + chatResponse.message());
+        }
+
         int statusCode = chatResponse.statusCode;
         if statusCode == UNAUTHORIZED {
             return error("The default Ballerina model is being used. " 
@@ -60,15 +62,24 @@ isolated distinct client class DefaultBallerinaModel {
         }
 
         if !(statusCode >= 200 && statusCode < 300) {
-            return error(string `LLM call failed: ${check chatResponse.getTextPayload()}`);
+            string|error textPayload = chatResponse.getTextPayload();
+            if textPayload is error {
+                return error("LLM call failed: " + textPayload.message());
+            }
+
+            return error(string `LLM call failed: ${textPayload}`);
         }
 
-        ChatCompletionResponse chatCompleteResponse = check (check chatResponse.getJsonPayload()).cloneWithType();
-        string[]? content = chatCompleteResponse?.content;
-        if content is () {
-            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        json|error jsonPayload = chatResponse.getJsonPayload();
+        if jsonPayload is error {
+            return error("LLM call failed: " + jsonPayload.message());
         }
 
-        return parseResponseAsType(content[0], expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
+        ai:ChatAssistantMessage|error payload = (jsonPayload).cloneWithType();
+        if payload is ai:ChatAssistantMessage {
+            return payload;
+        }
+
+        return error ai:LlmError("LLM call failed: " + payload.message());
     }
 }

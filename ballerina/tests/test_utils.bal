@@ -118,27 +118,15 @@ isolated function getTheMockLLMResult(string message) returns string {
 
 isolated function getTestServiceResponse(string content) returns json =>
     {
-        'object: "chat.completion",
-        created: 0,
-        model: "",
-        id: "",
         choices: [
             {
-                finish_reason: "stop",
-                index: 0,
-                logprobs: (),
                 message: {
                     content: (),
                     role: "assistant",
-                    tool_calls: [
-                        {
-                            id: GET_RESULTS_TOOL,
-                            'function: {
-                                name: GET_RESULTS_TOOL,
-                                arguments: getTheMockLLMResult(content)
-                            }
-                        }
-                    ]
+                    tool_calls: [{
+                        name: GET_RESULTS_TOOL,
+                        arguments: getTheMockLLMResult(content)
+                    }]
                 }
             }
         ]

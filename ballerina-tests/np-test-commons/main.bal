@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 import ballerina/test;
 
@@ -24,16 +25,16 @@ const GET_RESULTS_TOOL = "getResults";
 service /llm on new http:Listener(8080) {
     resource function post openai/chat/completions(OpenAICreateChatCompletionRequest payload)
             returns json|error {
-        OpenAIChatCompletionRequestUserMessage message = payload.messages[0];
+        ai:ChatMessage message = payload.messages[0];
         anydata content = message["content"];
         string contentStr = content.toString();
         test:assertEquals(message.role, "user");
-        ChatCompletionTool[]? tools = payload?.tools;
+        ai:ChatCompletionFunctions[]? tools = payload?.tools;
         if tools is () {
             test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
 
-        FunctionParameters? parameters = tools[0].'function.parameters;
+        FunctionParameters? parameters = tools[0].parameters;
         if parameters is () {
             test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
@@ -41,25 +42,15 @@ service /llm on new http:Listener(8080) {
         test:assertEquals(parameters, getExpectedParameterSchema(contentStr));
 
         return {
-            'object: "chat.completion",
-            created: 0,
-            model: "",
-            id: "",
             choices: [
                 {
-                    finish_reason: "stop",
-                    index: 0,
-                    logprobs: (),
                     message: {
                         content: (),
                         role: "assistant",
                         tool_calls: [
                             {
-                                id: GET_RESULTS_TOOL,
-                                'function: {
-                                    name: GET_RESULTS_TOOL,
-                                    arguments: getMockLLMResponse(contentStr)
-                                }
+                                name: GET_RESULTS_TOOL,
+                                arguments: getMockLLMResponse(contentStr)
                             }
                         ]
                     }
@@ -69,10 +60,23 @@ service /llm on new http:Listener(8080) {
     }
 
     resource function post 'default/chat/complete(DefaultChatCompletionRequest req)
-            returns json|error {
-        test:assertEquals(req.outputSchema, getExpectedParameterSchema(req.prompt));
+            returns ai:ChatAssistantMessage|error {
+        ai:ChatMessage message = req.messages[0];
+        anydata content = message["content"];
+        string contentStr = content.toString();
+        ai:ChatCompletionFunctions[]? tools = req?.tools;
+        if tools is () {
+            test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+
+        FunctionParameters? parameters = tools[0].parameters;
+        test:assertEquals(parameters, getExpectedParameterSchema(contentStr));
         return {
-            content: [getMockLLMResponse(req.prompt)]
+            role: "assistant",
+            toolCalls: [{
+                name: GET_RESULTS_TOOL,
+                arguments: getMockLLMResponse(contentStr)
+            }]
         };
     }
 }
@@ -81,7 +85,7 @@ isolated function getExpectedPrompt(string prompt) returns string {
     string trimmedPrompt = prompt.trim();
 
     if trimmedPrompt.startsWith("Which country") {
-        return  string `Which country is known as the pearl of the Indian Ocean?`;
+        return string `Which country is known as the pearl of the Indian Ocean?`;
     }
 
     if trimmedPrompt.startsWith("For each string value ") {
@@ -256,36 +260,98 @@ isolated function getExpectedParameterSchema(string prompt) returns map<json> {
     }
 
     if trimmedPrompt.startsWith("For each string value ") {
-        return {"type": "object", "properties": {"result": {"type": "array", "items": {
-            "type": "object", "anyOf": [{"type": "string"}, {"type": "integer"}]}}}};
+        return {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "anyOf": [{"type": "string"}, {"type": "integer"}]
+                    }
+                }
+            }
+        };
     }
 
     if trimmedPrompt.startsWith("Who is a popular sportsperson") {
-        return {"type": "object", "anyOf": [{"required": ["firstName", "lastName", "sport", "yearOfBirth"], 
-            "type": "object", "properties": {"firstName": {"type": "string",
-            "description": "First name of the person"}, "lastName": {"type": "string", 
-            "description": "Last name of the person"}, "yearOfBirth": {
-            "type": "integer", "description": "Year the person was born", 
-            "format": "int64"}, "sport": {"type": "string", 
-            "description": "Sport that the person plays"}}}, {"type": null}]};
+        return {
+            "type": "object",
+            "anyOf": [
+                {
+                    "required": ["firstName", "lastName", "sport", "yearOfBirth"],
+                    "type": "object",
+                    "properties": {
+                        "firstName": {
+                            "type": "string",
+                            "description": "First name of the person"
+                        },
+                        "lastName": {
+                            "type": "string",
+                            "description": "Last name of the person"
+                        },
+                        "yearOfBirth": {
+                            "type": "integer",
+                            "description": "Year the person was born",
+                            "format": "int64"
+                        },
+                        "sport": {
+                            "type": "string",
+                            "description": "Sport that the person plays"
+                        }
+                    }
+                },
+                {"type": null}
+            ]
+        };
     }
 
     if trimmedPrompt.includes("Tell me about places in the specified country") && trimmedPrompt.includes("Sri Lanka") {
-        return {"type": "object", "properties": {
-            "result": {"type": "array", "items": {"required": ["city", "country", "description", "name"], 
-            "type": "object", "properties": {"name": {"type": "string", "description": "Name of the place."}, 
-            "city": {"type": "string", "description": "City in which the place is located."}, 
-            "country": {"type": "string", "description": "Country in which the place is located."}, 
-            "description": {"type": "string", "description": "One-liner description of the place."}}}}}};
+        return {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "required": ["city", "country", "description", "name"],
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the place."},
+                            "city": {"type": "string", "description": "City in which the place is located."},
+                            "country": {"type": "string", "description": "Country in which the place is located."},
+                            "description": {"type": "string", "description": "One-liner description of the place."}
+                        }
+                    }
+                }
+            }
+        };
     }
 
     if trimmedPrompt.includes("Tell me about places in the specified country") && trimmedPrompt.includes("UAE") {
-        return {"type": "object", "properties": {"result": {"type": "array", "items": {
-            "required": ["city", "country", "description", "name"], "type": "object", "properties": {
-            "name": {"type": "string", "description": "Name of the place."}, "city": {
-            "type": "string", "description": "City in which the place is located."}, "country": {
-            "type": "string", "description": "Country in which the place is located."}, 
-            "description": {"type": "string", "description": "One-liner description of the place."}}}}}};
+        return {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "required": ["city", "country", "description", "name"],
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the place."},
+                            "city": {
+                                "type": "string",
+                                "description": "City in which the place is located."
+                            },
+                            "country": {
+                                "type": "string",
+                                "description": "Country in which the place is located."
+                            },
+                            "description": {"type": "string", "description": "One-liner description of the place."}
+                        }
+                    }
+                }
+            }
+        };
     }
 
     if trimmedPrompt.startsWith("What's the output of the Ballerina code below") {
@@ -315,7 +381,7 @@ isolated function getExpectedParameterSchema(string prompt) returns map<json> {
     test:assertFail("Unexpected prompt: " + trimmedPrompt);
 }
 
-isolated function getMockLLMResponse(string message) returns string? {
+isolated function getMockLLMResponse(string message) returns string {
     if message.startsWith("Which country") {
         return "{\"result\": \"Sri Lanka\"}";
     }
@@ -326,25 +392,25 @@ isolated function getMockLLMResponse(string message) returns string? {
 
     if message.startsWith("Who is a popular sportsperson") {
         return "{\"firstName\": \"Simone\", \"lastName\": \"Biles\", \"yearOfBirth\": 1997, " +
-             "\"sport\": \"Gymnastics\"}";
+            "\"sport\": \"Gymnastics\"}";
     }
 
     if message.includes("Tell me about places in the specified country") && message.includes("Sri Lanka") {
         return "{\"result\": [{\"name\": \"Unawatuna Beach\", \"city\": \"Galle\", " +
-             "\"country\": \"Sri Lanka\", \"description\": \"A popular beach known for its golden sands and vibrant" +
+            "\"country\": \"Sri Lanka\", \"description\": \"A popular beach known for its golden sands and vibrant" +
                 " nightlife.\"}, {\"name\": \"Mirissa Beach\", \"city\": \"Mirissa\", \"country\": \"Sri Lanka\"," +
                 " \"description\": \"Famous for its stunning sunsets and opportunities for whale watching.\"}," +
-                " {\"name\": \"Hikkaduwa Beach\", \"city\": \"Hikkaduwa\", \"country\": \"Sri Lanka\"," + 
+                " {\"name\": \"Hikkaduwa Beach\", \"city\": \"Hikkaduwa\", \"country\": \"Sri Lanka\"," +
                 " \"description\": \"A great destination for snorkeling and surfing, " +
                 "lined with lively restaurants.\"}]}";
     }
 
     if message.includes("Tell me about places in the specified country") && message.includes("UAE") {
         return "{\"result\": [{\"name\": \"Burj Khalifa\", \"city\": \"Dubai\", " +
-             "\"country\": \"UAE\", \"description\": \"The tallest building in the world, offering panoramic views" + 
+            "\"country\": \"UAE\", \"description\": \"The tallest building in the world, offering panoramic views" +
                 " of the city.\"}, {\"name\": \"Ain Dubai\", \"city\": \"Dubai\", \"country\": \"UAE\"," +
-                 " \"description\": \"The world's tallest observation wheel, providing breathtaking " +
-                  "views of the Dubai skyline.\"}]}";
+                " \"description\": \"The world's tallest observation wheel, providing breathtaking " +
+                "views of the Dubai skyline.\"}]}";
     }
 
     if message.startsWith("What's the output of the Ballerina code below?") {

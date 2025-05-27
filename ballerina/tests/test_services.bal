@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 import ballerina/test;
 
@@ -22,20 +23,21 @@ service /llm on new http:Listener(8080) {
             string api\-version, AzureOpenAICreateChatCompletionRequest payload)
                 returns json|error {
         test:assertEquals(api\-version, "2023-08-01-preview");
-        string content = payload.messages[0].content;
-        AzureOpenAIChatCompletionRequestMessage[]? messages = payload.messages;
-        if messages is () {
-            test:assertFail("Expected messages in the payload");
+        ai:ChatMessage message = payload.messages[0];
+
+        string? content = message.content;
+        if content is () {
+            test:assertFail("Expected content in the payload");
         }
-        AzureOpenAIChatCompletionRequestMessage message = messages[0];
+
         test:assertEquals(content, getExpectedPrompt(content));
         test:assertEquals(message.role, "user");
-        ChatCompletionTool[]? tools = payload?.tools;
+        ai:ChatCompletionFunctions[]? tools = payload?.tools;
         if tools is () {
             test:assertFail("No tools in the payload");
         }
 
-        FunctionParameters? parameters = tools[0].'function.parameters;
+        FunctionParameters? parameters = check tools[0].parameters.toJson().cloneWithType();
         if parameters is () {
             test:assertFail("No tools in the payload");
         }
@@ -47,17 +49,17 @@ service /llm on new http:Listener(8080) {
     resource function post openai/chat/completions(OpenAICreateChatCompletionRequest payload)
             returns json|error {
 
-        OpenAIChatCompletionRequestUserMessage message = payload.messages[0];
+        ai:ChatMessage message = payload.messages[0];
         anydata content = message["content"];
         string contentStr = content.toString();
         test:assertEquals(message.role, "user");
         test:assertEquals(content, getExpectedPrompt(contentStr));
-        ChatCompletionTool[]? tools = payload?.tools;
+        ai:ChatCompletionFunctions[]? tools = payload?.tools;
         if tools is () {
             test:assertFail("No tools in the payload");
         }
 
-        FunctionParameters? parameters = tools[0].'function.parameters;
+        FunctionParameters? parameters = check tools[0].parameters.toJson().cloneWithType();
         if parameters is () {
             test:assertFail("No tools in the payload");
         }

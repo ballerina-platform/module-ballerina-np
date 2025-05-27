@@ -14,6 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
+
 const JSON_CONVERSION_ERROR = "FromJsonStringError";
 const CONVERSION_ERROR = "ConversionError";
 const ERROR_MESSAGE = "Error occurred while attempting to parse the response from the " +
@@ -43,7 +45,7 @@ type SchemaResponse record {|
 
 public annotation map<json> JsonSchema on type;
 
-final ModelProvider? defaultModel;
+final ai:ModelProvider? defaultModel;
 
 function init() returns error? {
     DefaultModelConfig? defaultModelConfigVar = defaultModelConfig;
@@ -76,8 +78,8 @@ function init() returns error? {
     defaultModel = check new DefaultBallerinaModel(defaultModelConfigVar);
 }
 
-isolated function getDefaultModel() returns ModelProvider {
-    final ModelProvider? defaultModelVar = defaultModel;
+isolated function getDefaultModel() returns ai:ModelProvider {
+    final ai:ModelProvider? defaultModelVar = defaultModel;
     if defaultModelVar is () {
         panic error("Default model is not initialized");
     }
@@ -95,9 +97,22 @@ isolated function buildPromptString(Prompt prompt) returns string {
 
 isolated function callLlmGeneric(Prompt prompt, Context context,
         typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
-    ModelProvider model = context.model;
-    anydata response = check model->call(prompt, expectedResponseTypedesc);
-    anydata|error result = response.ensureType(expectedResponseTypedesc);
+    ai:ModelProvider model = context.model;
+    SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
+    ai:ChatMessage[] messages = [{role: "user", content: buildPromptString(prompt)}];
+    ai:ChatCompletionFunctions[] tools = check getGetLlmResultTool(schemaResponse.schema);
+    ai:ChatAssistantMessage response = check model->chat(messages, tools);
+
+    ai:FunctionCall[]? functionCalls = response.toolCalls;
+    if functionCalls is () {
+        return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+    }
+
+    string arguments = functionCalls[0].arguments;
+    anydata res = check parseResponseAsType(arguments, expectedResponseTypedesc, 
+                            schemaResponse.isOriginallyJsonObject);
+    anydata|error result = res.ensureType(expectedResponseTypedesc);
+
     if result is error {
         return error(string `Invalid value returned from the LLM Client, expected: '${
             expectedResponseTypedesc.toBalString()}', found '${(typeof response).toBalString()}'`);
@@ -135,7 +150,7 @@ isolated function parseResponseAsType(string resp,
         return result;
     }
 
-    anydata|error result = check resp.fromJsonStringWithType(expectedResponseTypedesc);
+    anydata|error result = resp.fromJsonStringWithType(expectedResponseTypedesc);
     if result is error {
         return handleParseResponseError(result);
     }
@@ -177,16 +192,14 @@ isolated function generateJsonObjectSchema(map<json> schema) returns SchemaRespo
     return {schema: updatedSchema, isOriginallyJsonObject: false};
 }
 
-isolated function getGetLlmResultTool(map<json> parameters) returns ChatCompletionTool[] => [
-        {
-            'function: {
-                name: GET_RESULTS_TOOL,
-                parameters: parameters,
-                description: string 
-                    `Tool to call with the response from a large language model (LLM) for a user prompt.`
-            }
-        }
-    ];
+isolated function getGetLlmResultTool(map<json> parameters) returns ai:ChatCompletionFunctions[]|error {
+    return [{
+        name: GET_RESULTS_TOOL,
+        parameters: check parameters.toJson().cloneWithType(),
+        description: string 
+            `Tool to call with the response from a large language model (LLM) for a user prompt.`
+    }];
+}
 
 isolated function getToolChoiceToGenerateLlmResult() returns ChatCompletionNamedToolChoice => {
         'function: {

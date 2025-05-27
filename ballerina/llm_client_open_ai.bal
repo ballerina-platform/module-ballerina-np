@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 
 # Configuration for OpenAI model.
@@ -26,7 +27,7 @@ type OpenAIModelConfig record {|
 
 # OpenAI model chat completion client.
 isolated distinct client class OpenAIModel {
-    *ModelProvider;
+    *ai:ModelProvider;
 
     private final http:Client cl;
     private final string model;
@@ -39,34 +40,43 @@ isolated distinct client class OpenAIModel {
         self.model = model;
     }
 
-    isolated remote function chat(OpenAICreateChatCompletionRequest chatBody)
+    isolated remote function call(OpenAICreateChatCompletionRequest chatBody)
             returns OpenAICreateChatCompletionResponse|error {
         return self.cl->/chat/completions.post(chatBody);
     }
 
-    isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
-        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
+    isolated remote function chat(ai:ChatMessage[] messages, ai:ChatCompletionFunctions[] tools = [], string? stop = ())
+            returns ai:ChatAssistantMessage|ai:LlmError {
         OpenAICreateChatCompletionRequest chatBody = {
-            messages: [{role: "user", "content": buildPromptString(prompt)}],
+            messages,
             model: self.model,
-            tools: getGetLlmResultTool(schemaResponse.schema),
+            tools,
             tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
-        OpenAICreateChatCompletionResponse chatResult = check self->chat(chatBody);
-        OpenAICreateChatCompletionResponse_choices[] choices = chatResult.choices;
-        ChatCompletionMessageToolCalls? toolCalls = choices[0].message?.tool_calls;
+        OpenAICreateChatCompletionResponse|error chatResult = self->call(chatBody);
+        if chatResult is error {
+            return error ai:LlmError("LLM call failed: " + chatResult.message());
+        }
+        
+        record {
+            OpenAIChatCompletionResponseMessage message?;
+        }[]? choices = chatResult.choices;
+
+        if choices is () {
+            return error ai:LlmError("No completion choices");
+        }
+
+        ai:FunctionCall[]? toolCalls = choices[0].message?.tool_calls;
 
         if toolCalls is () {
-            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+            return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
 
-        string? resp = toolCalls[0].'function.arguments;
-
-        if resp is () {
-            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
-        }
-
-        return parseResponseAsType(resp, expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
+        return {
+            role: ai:ASSISTANT,
+            name: GET_RESULTS_TOOL,
+            toolCalls
+        };
     }
 }

@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 import ballerina/url;
 
@@ -112,18 +113,9 @@ type ChatCompletionTool record {
 };
 
 type OpenAICreateChatCompletionRequest record {
-    OpenAIChatCompletionRequestUserMessage[1] messages;
+    ai:ChatMessage[] messages;
     string model;
-    boolean? store = false;
-    decimal? frequency_penalty = 0;
-    boolean? logprobs = false;
-    int? n = 1;
-    decimal? presence_penalty = 0;
-    "auto"|"default"? service_tier = "auto";
-    boolean? 'stream = false;
-    decimal? temperature = 1;
-    decimal? top_p = 1;
-    ChatCompletionTool[] tools?;
+    ai:ChatCompletionFunctions[] tools?;
     ChatCompletionToolChoiceOption tool_choice?;
 };
 
@@ -136,7 +128,7 @@ type ChatCompletionMessageToolCalls ChatCompletionMessageToolCall[];
 
 type OpenAIChatCompletionResponseMessage record {
     string? content;
-    ChatCompletionMessageToolCalls tool_calls?;
+    ai:FunctionCall[] tool_calls?;
 };
 
 type ChatCompletionMessageToolCall record {
@@ -195,14 +187,14 @@ type AzureOpenAIChatCompletionRequestMessage record {|
 |};
 
 type AzureOpenAICreateChatCompletionRequest record {|
-    AzureOpenAIChatCompletionRequestMessage[1] messages;
-    ChatCompletionTool[] tools?;
+    ai:ChatMessage[] messages;
+    ai:ChatCompletionFunctions[] tools?;
     ChatCompletionToolChoiceOption tool_choice?;
 |};
 
 type AzureOpenAIChatCompletionResponseMessage record {
     string? content?;
-    ChatCompletionMessageToolCalls tool_calls?;
+    ai:FunctionCall[] tool_calls?;
 };
 
 type AzureOpenAICreateChatCompletionResponse record {

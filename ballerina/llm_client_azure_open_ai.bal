@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 
 # Configuration for Azure OpenAI model.
@@ -26,7 +27,7 @@ type AzureOpenAIModelConfig record {|
 
 # Azure OpenAI model chat completion client.
 isolated distinct client class AzureOpenAIModel {
-    *ModelProvider;
+    *ai:ModelProvider;
 
     private final http:Client cl;
     private final string deploymentId;
@@ -48,42 +49,44 @@ isolated distinct client class AzureOpenAIModel {
         self.apiVersion = apiVersion;
     }
 
-    isolated remote function chat(AzureOpenAICreateChatCompletionRequest chatBody)
+    isolated remote function call(AzureOpenAICreateChatCompletionRequest chatBody)
             returns AzureOpenAICreateChatCompletionResponse|error {
         string resourcePath = string `/deployments/${check getEncodedUri(self.deploymentId)}/chat/completions`;
         resourcePath = string `${resourcePath}?${check getEncodedUri("api-version")}=${self.apiVersion}`;
         return self.cl->post(resourcePath, chatBody, self.headers);
     }
 
-    isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
-        SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
+    isolated remote function chat(ai:ChatMessage[] messages, ai:ChatCompletionFunctions[] tools = [], string? stop = ())
+            returns ai:ChatAssistantMessage|ai:LlmError {
         AzureOpenAICreateChatCompletionRequest chatBody = {
-            messages: [{role: "user", content: buildPromptString(prompt)}],
-            tools: getGetLlmResultTool(schemaResponse.schema),
+            messages,
+            tools,
             tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
-        AzureOpenAICreateChatCompletionResponse chatResult = check self->chat(chatBody);
+        AzureOpenAICreateChatCompletionResponse|error chatResult = self->call(chatBody);
+        if chatResult is error {
+            return error ai:LlmError("LLM call failed: " + chatResult.message());
+        }
+        
         record {
             AzureOpenAIChatCompletionResponseMessage message?;
         }[]? choices = chatResult.choices;
 
         if choices is () {
-            return error("No completion choices");
+            return error ai:LlmError("No completion choices");
         }
 
-        ChatCompletionMessageToolCalls? toolCalls = choices[0].message?.tool_calls;
+        ai:FunctionCall[]? toolCalls = choices[0].message?.tool_calls;
 
         if toolCalls is () {
-            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+            return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
 
-        string? resp = toolCalls[0].'function.arguments;
-
-        if resp is () {
-            return error(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
-        }
-
-        return parseResponseAsType(resp, expectedResponseTypedesc, schemaResponse.isOriginallyJsonObject);
+        return {
+            role: ai:ASSISTANT,
+            name: GET_RESULTS_TOOL,
+            toolCalls
+        };
     }
 }
