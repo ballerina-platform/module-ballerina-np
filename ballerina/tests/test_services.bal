@@ -32,7 +32,7 @@ service /llm on new http:Listener(8080) {
 
         test:assertEquals(content, getExpectedPrompt(content));
         test:assertEquals(message.role, "user");
-        ai:ChatCompletionFunctions[]? tools = payload?.tools;
+        ChatCompletionFunctions[]? tools = payload?.tools;
         if tools is () {
             test:assertFail("No tools in the payload");
         }
@@ -54,7 +54,7 @@ service /llm on new http:Listener(8080) {
         string contentStr = content.toString();
         test:assertEquals(message.role, "user");
         test:assertEquals(content, getExpectedPrompt(contentStr));
-        ai:ChatCompletionFunctions[]? tools = payload?.tools;
+        ChatCompletionFunctions[]? tools = payload?.tools;
         if tools is () {
             test:assertFail("No tools in the payload");
         }

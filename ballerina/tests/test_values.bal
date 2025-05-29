@@ -75,16 +75,16 @@ const expectedParamterSchemaStringForRateBlog =
     {"type": "object", "properties": {"result": {"type": "integer"}}};
 
 const expectedParamterSchemaStringForRateBlog2 =
-    {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": {
+    {"type": "object", "properties": {
         "rating": {"type": "integer"}, "comment": {"type": "string"}}, "required": ["rating", "comment"]};
 
 const expectedParamterSchemaStringForRateBlog3 =
     {"type": "object", "properties": {"result": {"type": "boolean"}}};
 
 const expectedParamterSchemaStringForRateBlog4 =
-    {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": {
-        "result": {"type": "array", "items": {"$schema": "https://json-schema.org/draft/2020-12/schema", 
-        "type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}}};
+    {"type": "object", "properties": {
+        "result": {"type": "array", "items": {"type": "object",
+            "properties": {"name": {"type": "string"}}, "required": ["name"]}}}};
 
 const expectedParamterSchemaStringForBalProgram =
     {"type": "object", "properties": {"result": {"type": "integer"}}};

@@ -29,7 +29,7 @@ service /llm on new http:Listener(8080) {
         anydata content = message["content"];
         string contentStr = content.toString();
         test:assertEquals(message.role, "user");
-        ai:ChatCompletionFunctions[]? tools = payload?.tools;
+        ChatCompletionFunctions[]? tools = payload?.tools;
         if tools is () {
             test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
@@ -64,7 +64,7 @@ service /llm on new http:Listener(8080) {
         ai:ChatMessage message = req.messages[0];
         anydata content = message["content"];
         string contentStr = content.toString();
-        ai:ChatCompletionFunctions[]? tools = req?.tools;
+        ChatCompletionFunctions[]? tools = req?.tools;
         if tools is () {
             test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
@@ -261,13 +261,15 @@ isolated function getExpectedParameterSchema(string prompt) returns map<json> {
 
     if trimmedPrompt.startsWith("For each string value ") {
         return {
-            "type": "object",
-            "properties": {
-                "result": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "anyOf": [{"type": "string"}, {"type": "integer"}]
+            "type":"object",
+            "properties":{
+                "result":{
+                    "type":"array",
+                    "items":{
+                        "anyOf":[
+                            {"type":"string"},
+                            {"type":"integer"}
+                        ]
                     }
                 }
             }
@@ -277,32 +279,41 @@ isolated function getExpectedParameterSchema(string prompt) returns map<json> {
     if trimmedPrompt.startsWith("Who is a popular sportsperson") {
         return {
             "type": "object",
-            "anyOf": [
-                {
-                    "required": ["firstName", "lastName", "sport", "yearOfBirth"],
+            "properties": {
+                "result": {
+                "anyOf": [
+                    {
                     "type": "object",
+                    "required": [
+                        "firstName",
+                        "lastName",
+                        "sport",
+                        "yearOfBirth"
+                    ],
                     "properties": {
                         "firstName": {
-                            "type": "string",
-                            "description": "First name of the person"
+                        "type": "string",
+                        "description": "First name of the person"
                         },
                         "lastName": {
-                            "type": "string",
-                            "description": "Last name of the person"
+                        "type": "string",
+                        "description": "Last name of the person"
                         },
                         "yearOfBirth": {
-                            "type": "integer",
-                            "description": "Year the person was born",
-                            "format": "int64"
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Year the person was born"
                         },
                         "sport": {
-                            "type": "string",
-                            "description": "Sport that the person plays"
+                        "type": "string",
+                        "description": "Sport that the person plays"
                         }
                     }
-                },
-                {"type": null}
-            ]
+                    }
+                ],
+                "nullable": true
+                }
+            }
         };
     }
 
@@ -391,8 +402,8 @@ isolated function getMockLLMResponse(string message) returns string {
     }
 
     if message.startsWith("Who is a popular sportsperson") {
-        return "{\"firstName\": \"Simone\", \"lastName\": \"Biles\", \"yearOfBirth\": 1997, " +
-            "\"sport\": \"Gymnastics\"}";
+        return "{\"result\": {\"firstName\": \"Simone\", \"lastName\": \"Biles\", \"yearOfBirth\": 1997, " +
+            "\"sport\": \"Gymnastics\"}}";
     }
 
     if message.includes("Tell me about places in the specified country") && message.includes("Sri Lanka") {

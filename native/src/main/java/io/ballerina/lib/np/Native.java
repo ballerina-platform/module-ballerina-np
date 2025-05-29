@@ -146,11 +146,15 @@ public class Native {
     private static Object generateJsonSchemaForUnionType(UnionType unionType,
                                                          SchemaGenerationContext schemaGenerationContext) {
         BMap<BString, Object> schemaMap = createMapValue(TypeCreator.createMapType(PredefinedTypes.TYPE_JSON));
-        schemaMap.put(StringUtils.fromString("type"), StringUtils.fromString("object"));
+        // schemaMap.put(StringUtils.fromString("type"), StringUtils.fromString("object"));
         BArray annotationArray = ValueCreator.createArrayValue(TypeCreator.createArrayType(PredefinedTypes.TYPE_JSON));
 
         int index = 0;
         for (Type type : unionType.getMemberTypes()) {
+            if (type.getTag() == TypeTags.NULL_TAG) {
+                schemaMap.put(StringUtils.fromString("nullable"), true);
+                continue;
+            }
             annotationArray.add(index++, generateJsonSchemaForType(type, schemaGenerationContext));
         }
 

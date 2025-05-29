@@ -22,10 +22,16 @@ type OpenAIChatCompletionRequestUserMessage record {
     string name?;
 };
 
+public type ChatCompletionFunctions record {|
+    string name;
+    string description;
+    map<json> parameters?;
+|};
+
 type OpenAICreateChatCompletionRequest record {
     ai:ChatMessage[] messages;
     string model;
-    ai:ChatCompletionFunctions[] tools?;
+    ChatCompletionFunctions[] tools?;
 };
 
 type ChatCompletionTool record {
@@ -44,5 +50,5 @@ type FunctionParameters record {
 
 type DefaultChatCompletionRequest record {|
     ai:ChatMessage[] messages;
-    ai:ChatCompletionFunctions[] tools?;
+    ChatCompletionFunctions[] tools?;
 |};

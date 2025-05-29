@@ -40,11 +40,10 @@ isolated function getExpectedParameterSchema(string message) returns FunctionPar
     }
 
     if message.startsWith("Who is a popular sportsperson") {
-        return {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": {
-            "result": {"type": ["object", "null"], "properties": {"firstName": {"type": "string"}, 
-            "middleName": {"type": ["string", "null"]}, "lastName": {"type": "string"}, "yearOfBirth": {
+        return {"type": "object", "properties": {"firstName": {"type": "string"}, 
+            "middleName": {"type": "string", "nullable": true}, "lastName": {"type": "string"}, "yearOfBirth": {
             "type": "integer"}, "sport": {"type": "string"}}, 
-            "required": ["firstName", "middleName", "lastName", "yearOfBirth", "sport"]}}};
+            "required": ["firstName", "middleName", "lastName", "yearOfBirth", "sport"], "nullable": true};
     }
 
     return {};
@@ -109,8 +108,8 @@ isolated function getTheMockLLMResult(string message) returns string {
     }
 
     if message.startsWith("Who is a popular sportsperson") {
-        return "{\"result\": {\"firstName\": \"Simone\", \"middleName\": null, " +
-             "\"lastName\": \"Biles\", \"yearOfBirth\": 1997, \"sport\": \"Gymnastics\"}}";
+        return "{\"firstName\": \"Simone\", \"middleName\": null, " +
+             "\"lastName\": \"Biles\", \"yearOfBirth\": 1997, \"sport\": \"Gymnastics\"}";
     }
 
     return "INVALID";
