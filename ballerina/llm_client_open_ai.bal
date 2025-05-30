@@ -50,7 +50,7 @@ isolated distinct client class OpenAIModel {
         OpenAICreateChatCompletionRequest chatBody = {
             messages,
             model: self.model,
-            tools,
+            tools: generateOpenAIChatCompletionTools(tools),
             tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
@@ -67,7 +67,7 @@ isolated distinct client class OpenAIModel {
             return error ai:LlmError("No completion choices");
         }
 
-        ai:FunctionCall[]? toolCalls = choices[0].message?.tool_calls;
+        ChatCompletionMessageToolCall[]? toolCalls = choices[0].message?.tool_calls;
 
         if toolCalls is () {
             return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
@@ -76,7 +76,8 @@ isolated distinct client class OpenAIModel {
         return {
             role: ai:ASSISTANT,
             name: GET_RESULTS_TOOL,
-            toolCalls
+            toolCalls: from ChatCompletionMessageToolCall tool in toolCalls 
+                select {name: tool.'function.name, arguments: tool.'function.arguments}
         };
     }
 }

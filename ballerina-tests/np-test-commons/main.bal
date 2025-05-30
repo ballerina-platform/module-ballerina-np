@@ -29,12 +29,12 @@ service /llm on new http:Listener(8080) {
         anydata content = message["content"];
         string contentStr = content.toString();
         test:assertEquals(message.role, "user");
-        ChatCompletionFunctions[]? tools = payload?.tools;
+        ChatCompletionTool[]? tools = payload?.tools;
         if tools is () {
             test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
 
-        FunctionParameters? parameters = tools[0].parameters;
+        FunctionParameters? parameters = tools[0].'function.parameters;
         if parameters is () {
             test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
@@ -46,11 +46,12 @@ service /llm on new http:Listener(8080) {
                 {
                     message: {
                         content: (),
-                        role: "assistant",
                         tool_calls: [
                             {
-                                name: GET_RESULTS_TOOL,
-                                arguments: getMockLLMResponse(contentStr)
+                                'function: {
+                                    name: GET_RESULTS_TOOL,
+                                    arguments: getMockLLMResponse(contentStr)
+                                }
                             }
                         ]
                     }
@@ -64,19 +65,21 @@ service /llm on new http:Listener(8080) {
         ai:ChatMessage message = req.messages[0];
         anydata content = message["content"];
         string contentStr = content.toString();
-        ChatCompletionFunctions[]? tools = req?.tools;
+        ChatCompletionTool[]? tools = req?.tools;
         if tools is () {
             test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
 
-        FunctionParameters? parameters = tools[0].parameters;
+        FunctionParameters parameters = tools[0].'function.parameters;
         test:assertEquals(parameters, getExpectedParameterSchema(contentStr));
         return {
             role: "assistant",
-            toolCalls: [{
-                name: GET_RESULTS_TOOL,
-                arguments: getMockLLMResponse(contentStr)
-            }]
+            toolCalls: [
+                {
+                    name: GET_RESULTS_TOOL,
+                    arguments: getMockLLMResponse(contentStr)
+                }
+            ]
         };
     }
 }
@@ -261,14 +264,14 @@ isolated function getExpectedParameterSchema(string prompt) returns map<json> {
 
     if trimmedPrompt.startsWith("For each string value ") {
         return {
-            "type":"object",
-            "properties":{
-                "result":{
-                    "type":"array",
-                    "items":{
-                        "anyOf":[
-                            {"type":"string"},
-                            {"type":"integer"}
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "integer"}
                         ]
                     }
                 }
@@ -281,37 +284,37 @@ isolated function getExpectedParameterSchema(string prompt) returns map<json> {
             "type": "object",
             "properties": {
                 "result": {
-                "anyOf": [
-                    {
-                    "type": "object",
-                    "required": [
-                        "firstName",
-                        "lastName",
-                        "sport",
-                        "yearOfBirth"
-                    ],
-                    "properties": {
-                        "firstName": {
-                        "type": "string",
-                        "description": "First name of the person"
-                        },
-                        "lastName": {
-                        "type": "string",
-                        "description": "Last name of the person"
-                        },
-                        "yearOfBirth": {
-                        "type": "integer",
-                        "format": "int64",
-                        "description": "Year the person was born"
-                        },
-                        "sport": {
-                        "type": "string",
-                        "description": "Sport that the person plays"
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "required": [
+                                "firstName",
+                                "lastName",
+                                "sport",
+                                "yearOfBirth"
+                            ],
+                            "properties": {
+                                "firstName": {
+                                    "type": "string",
+                                    "description": "First name of the person"
+                                },
+                                "lastName": {
+                                    "type": "string",
+                                    "description": "Last name of the person"
+                                },
+                                "yearOfBirth": {
+                                    "type": "integer",
+                                    "format": "int64",
+                                    "description": "Year the person was born"
+                                },
+                                "sport": {
+                                    "type": "string",
+                                    "description": "Sport that the person plays"
+                                }
+                            }
                         }
-                    }
-                    }
-                ],
-                "nullable": true
+                    ],
+                    "nullable": true
                 }
             }
         };

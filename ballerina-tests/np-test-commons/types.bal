@@ -22,16 +22,22 @@ type OpenAIChatCompletionRequestUserMessage record {
     string name?;
 };
 
-public type ChatCompletionFunctions record {|
+type AssistantsNamedToolChoice_function record {
     string name;
-    string description;
-    map<json> parameters?;
-|};
+};
+
+type ChatCompletionNamedToolChoice record {
+    FUNCTION 'type = FUNCTION;
+    AssistantsNamedToolChoice_function 'function;
+};
+
+type ChatCompletionToolChoiceOption ChatCompletionNamedToolChoice;
 
 type OpenAICreateChatCompletionRequest record {
     ai:ChatMessage[] messages;
     string model;
-    ChatCompletionFunctions[] tools?;
+    ChatCompletionTool[] tools?;
+    ChatCompletionToolChoiceOption tool_choice?;
 };
 
 type ChatCompletionTool record {
@@ -39,16 +45,18 @@ type ChatCompletionTool record {
     FunctionObject 'function;
 };
 
+type FunctionParameters record {|
+    json...;
+|};
+
 type FunctionObject record {
     string description?;
     string name;
-    FunctionParameters parameters?;
-};
-
-type FunctionParameters record {
+    FunctionParameters parameters;
 };
 
 type DefaultChatCompletionRequest record {|
     ai:ChatMessage[] messages;
-    ChatCompletionFunctions[] tools?;
+    ChatCompletionTool[] tools?;
+    ChatCompletionToolChoiceOption tool_choice?;
 |};

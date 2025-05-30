@@ -206,3 +206,12 @@ isolated function getToolChoiceToGenerateLlmResult() returns ChatCompletionNamed
             name: GET_RESULTS_TOOL
         }
     };
+
+isolated function generateOpenAIChatCompletionTools(ai:ChatCompletionFunctions[] tools) returns ChatCompletionTool[] =>
+         from ai:ChatCompletionFunctions tool in tools select {
+                'function: {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: checkpanic tool.parameters.toJson().cloneWithType()
+                }
+            };

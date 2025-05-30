@@ -48,7 +48,8 @@ isolated distinct client class DefaultBallerinaModel {
         http:Client cl = self.cl;
         http:Response|error chatResponse = cl->/chat/complete.post({
             messages,
-            tools
+            tools: generateOpenAIChatCompletionTools(tools),
+            tool_choice: getToolChoiceToGenerateLlmResult()
         });
 
         if chatResponse is error {

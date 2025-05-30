@@ -60,7 +60,7 @@ isolated distinct client class AzureOpenAIModel {
             returns ai:ChatAssistantMessage|ai:LlmError {
         AzureOpenAICreateChatCompletionRequest chatBody = {
             messages,
-            tools,
+            tools: generateOpenAIChatCompletionTools(tools),
             tool_choice: getToolChoiceToGenerateLlmResult()
         };
 
@@ -77,7 +77,7 @@ isolated distinct client class AzureOpenAIModel {
             return error ai:LlmError("No completion choices");
         }
 
-        ai:FunctionCall[]? toolCalls = choices[0].message?.tool_calls;
+        ChatCompletionMessageToolCall[]? toolCalls = choices[0].message?.tool_calls;
 
         if toolCalls is () {
             return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
@@ -86,7 +86,8 @@ isolated distinct client class AzureOpenAIModel {
         return {
             role: ai:ASSISTANT,
             name: GET_RESULTS_TOOL,
-            toolCalls
+            toolCalls: <ai:FunctionCall[]>from ChatCompletionMessageToolCall tool in toolCalls 
+                select {name: tool.'function.name, arguments: tool.'function.arguments}
         };
     }
 }

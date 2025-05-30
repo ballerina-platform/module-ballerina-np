@@ -121,10 +121,11 @@ isolated function getTestServiceResponse(string content) returns json =>
             {
                 message: {
                     content: (),
-                    role: "assistant",
                     tool_calls: [{
-                        name: GET_RESULTS_TOOL,
-                        arguments: getTheMockLLMResult(content)
+                        'function: {
+                            name: GET_RESULTS_TOOL,
+                            arguments: getTheMockLLMResult(content)
+                        }
                     }]
                 }
             }

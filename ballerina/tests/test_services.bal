@@ -32,12 +32,12 @@ service /llm on new http:Listener(8080) {
 
         test:assertEquals(content, getExpectedPrompt(content));
         test:assertEquals(message.role, "user");
-        ChatCompletionFunctions[]? tools = payload?.tools;
-        if tools is () {
+        ChatCompletionTool[] tools = payload.tools;
+        if tools.length() == 0 {
             test:assertFail("No tools in the payload");
         }
 
-        FunctionParameters? parameters = check tools[0].parameters.toJson().cloneWithType();
+        FunctionParameters? parameters = check tools[0].'function?.parameters.toJson().cloneWithType();
         if parameters is () {
             test:assertFail("No tools in the payload");
         }
@@ -54,12 +54,12 @@ service /llm on new http:Listener(8080) {
         string contentStr = content.toString();
         test:assertEquals(message.role, "user");
         test:assertEquals(content, getExpectedPrompt(contentStr));
-        ChatCompletionFunctions[]? tools = payload?.tools;
+        ChatCompletionTool[]? tools = payload?.tools;
         if tools is () {
             test:assertFail("No tools in the payload");
         }
 
-        FunctionParameters? parameters = check tools[0].parameters.toJson().cloneWithType();
+        FunctionParameters? parameters = check tools[0].'function?.parameters.toJson().cloneWithType();
         if parameters is () {
             test:assertFail("No tools in the payload");
         }

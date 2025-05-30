@@ -81,14 +81,7 @@ type ApiKeysConfig record {|
     string apiKey;
 |};
 
-type OpenAIChatCompletionRequestUserMessage record {
-    string content;
-    "user" role;
-    string name?;
-};
-
-type FunctionParameters record {
-};
+type FunctionParameters record {|json...;|};
 
 type FunctionObject record {
     string description?;
@@ -115,7 +108,7 @@ type ChatCompletionTool record {
 type OpenAICreateChatCompletionRequest record {
     ai:ChatMessage[] messages;
     string model;
-    ChatCompletionFunctions[] tools?;
+    ChatCompletionTool[] tools?;
     ChatCompletionToolChoiceOption tool_choice?;
 };
 
@@ -128,11 +121,11 @@ type ChatCompletionMessageToolCalls ChatCompletionMessageToolCall[];
 
 type OpenAIChatCompletionResponseMessage record {
     string? content;
-    ai:FunctionCall[] tool_calls?;
+    ChatCompletionMessageToolCalls tool_calls?;
 };
 
 type ChatCompletionMessageToolCall record {
-    string id;
+    string id?;
     FUNCTION 'type = FUNCTION;
     ChatCompletionMessageToolCall_function 'function;
 };
@@ -179,28 +172,15 @@ type AzureOpenAIConnectionConfig record {|
     boolean validation = true;
 |};
 
-type AzureOpenAIChatCompletionRequestMessageRole "system"|"user"|"assistant"|"tool"|"function";
-
-type AzureOpenAIChatCompletionRequestMessage record {|
-    AzureOpenAIChatCompletionRequestMessageRole role;
-    string content;
-|};
-
 type AzureOpenAICreateChatCompletionRequest record {|
     ai:ChatMessage[] messages;
-    ChatCompletionFunctions[] tools?;
-    ChatCompletionToolChoiceOption tool_choice?;
-|};
-
-public type ChatCompletionFunctions record {|
-    string name;
-    string description;
-    map<json> parameters?;
+    ChatCompletionTool[] tools;
+    ChatCompletionToolChoiceOption? tool_choice = ();
 |};
 
 type AzureOpenAIChatCompletionResponseMessage record {
     string? content?;
-    ai:FunctionCall[] tool_calls?;
+    ChatCompletionMessageToolCalls tool_calls?;
 };
 
 type AzureOpenAICreateChatCompletionResponse record {
