@@ -14,8 +14,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 import ballerina/test;
+
+const NO_RELEVANT_RESPONSE_FROM_THE_LLM = "No relevant response from the LLM";
+const FUNCTION = "function";
+const GET_RESULTS_TOOL = "getResults";
 
 service /llm on new http:Listener(8080) {
     resource function post openai/chat/completions(OpenAICreateChatCompletionRequest payload)
@@ -24,34 +29,57 @@ service /llm on new http:Listener(8080) {
         anydata content = message["content"];
         string contentStr = content.toString();
         test:assertEquals(message.role, "user");
-        test:assertEquals(content, getExpectedPrompt(content.toString()));
+        ChatCompletionTool[]? tools = payload?.tools;
+        if tools is () {
+            test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
 
-        test:assertEquals(payload.model, "gpt-4o-mini");
+        FunctionParameters? parameters = tools[0].'function.parameters;
+        if parameters is () {
+            test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+        test:assertEquals(contentStr, getExpectedPrompt(contentStr));
+        test:assertEquals(parameters, getExpectedParameterSchema(contentStr));
+
         return {
-            'object: "chat.completion",
-            created: 0,
-            model: "",
-            id: "",
             choices: [
                 {
-                    finish_reason: "stop",
-                    index: 0,
-                    logprobs: (),
                     message: {
-                        role: "assistant",
-                        content: getMockLLMResponse(contentStr),
-                        refusal: ()
+                        content: (),
+                        tool_calls: [
+                            {
+                                'function: {
+                                    name: GET_RESULTS_TOOL,
+                                    arguments: getMockLLMResponse(contentStr)
+                                }
+                            }
+                        ]
                     }
                 }
             ]
         };
     }
 
-    resource function post 'default/chat/complete(@http:Payload string contentStr)
-            returns json|error {
-        test:assertEquals(contentStr, getExpectedPrompt(contentStr.toString()));
+    resource function post 'default/chat/complete(DefaultChatCompletionRequest req)
+            returns ai:ChatAssistantMessage|error {
+        AzureOpenAIChatCompletionRequestUserMessage message = req.messages[0];
+        anydata content = message["content"];
+        string contentStr = content.toString();
+        ChatCompletionTool[]? tools = req?.tools;
+        if tools is () {
+            test:assertFail(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+
+        FunctionParameters parameters = tools[0].'function.parameters;
+        test:assertEquals(parameters, getExpectedParameterSchema(contentStr));
         return {
-            content: [getMockLLMResponse(contentStr)]
+            role: "assistant",
+            toolCalls: [
+                {
+                    name: GET_RESULTS_TOOL,
+                    arguments: getMockLLMResponse(contentStr)
+                }
+            ]
         };
     }
 }
@@ -60,39 +88,18 @@ isolated function getExpectedPrompt(string prompt) returns string {
     string trimmedPrompt = prompt.trim();
 
     if trimmedPrompt.startsWith("Which country") {
-        return  string `Which country is known as the pearl of the Indian Ocean?
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"string"}`;
+        return string `Which country is known as the pearl of the Indian Ocean?`;
     }
 
     if trimmedPrompt.startsWith("For each string value ") {
         return string `For each string value in the given array if the value can be parsed
     as an integer give an integer, if not give the same string value. Please preserve the order.
-    Array value: ["foo","1","bar","2.3","4"]
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"array", "items":{"type":"object", "anyOf":[{"type":"string"}, {"type":"integer"}]}}`;
+    Array value: ["foo","1","bar","2.3","4"]`;
     }
 
     if trimmedPrompt.startsWith("Who is a popular sportsperson") {
         return string `Who is a popular sportsperson that was born in the decade starting
-    from 1990 with Simone in their name?
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"object", "anyOf":[{"required":["firstName", "lastName", "sport", "yearOfBirth"], "type":"object", "properties":{"firstName":{"type":"string", "description":"First name of the person"}, "lastName":{"type":"string", "description":"Last name of the person"}, "yearOfBirth":{"type":"integer", "description":"Year the person was born", "format":"int64"}, "sport":{"type":"string", "description":"Sport that the person plays"}}}, {"type":null}]}`;
+    from 1990 with Simone in their name?`;
     }
 
     if trimmedPrompt.includes("Tell me about places in the specified country") && trimmedPrompt.includes("Sri Lanka") {
@@ -116,14 +123,7 @@ ${"```"}
     Tell me about places in the specified country that could be a good destination 
     to someone who has the specified interest.
 
-    Include only the number of places specified by the count parameter.
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```"}json and ${"```"}
-        
-        Schema:
-        {"type":"array", "items":{"required":["city", "country", "description", "name"], "type":"object", "properties":{"name":{"type":"string", "description":"Name of the place."}, "city":{"type":"string", "description":"City in which the place is located."}, "country":{"type":"string", "description":"Country in which the place is located."}, "description":{"type":"string", "description":"One-liner description of the place."}}}}`;
+    Include only the number of places specified by the count parameter.`;
     }
 
     if trimmedPrompt.includes("Tell me about places in the specified country") && trimmedPrompt.includes("UAE") {
@@ -147,14 +147,7 @@ ${"```"}
     Tell me about places in the specified country that could be a good destination 
     to someone who has the specified interest.
 
-    Include only the number of places specified by the count parameter.
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```"}json and ${"```"}
-        
-        Schema:
-        {"type":"array", "items":{"required":["city", "country", "description", "name"], "type":"object", "properties":{"name":{"type":"string", "description":"Name of the place."}, "city":{"type":"string", "description":"City in which the place is located."}, "country":{"type":"string", "description":"Country in which the place is located."}, "description":{"type":"string", "description":"One-liner description of the place."}}}}`;
+    Include only the number of places specified by the count parameter.`;
     }
 
     if trimmedPrompt.startsWith("What's the output of the Ballerina code below") {
@@ -168,14 +161,7 @@ ${"```"}
         int y = 20;
         io:println(x + y);
     }
-    ${"```"}
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        {"type":"integer"}`;
+    ${"```"}`;
     }
 
     if trimmedPrompt.includes("What's the sum of these") {
@@ -197,14 +183,7 @@ ${"```"}
 []
 ${"```"}
 
-    What's the sum of these values?
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```"}json and ${"```"}
-        
-        Schema:
-        {"type":"integer"}`;
+    What's the sum of these values?`;
         }
 
         if trimmedPrompt.includes("[40,50]") {
@@ -225,14 +204,7 @@ ${"```"}
 [40,50]
 ${"```"}
 
-    What's the sum of these values?
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```"}json and ${"```"}
-        
-        Schema:
-        {"type":"integer"}`;
+    What's the sum of these values?`;
         }
     }
 
@@ -255,14 +227,7 @@ ${"```"}
 []
 ${"```"}
 
-    Give me the sum of these values
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```"}json and ${"```"}
-        
-        Schema:
-        {"type":"integer"}`;
+    Give me the sum of these values`;
         }
 
         if trimmedPrompt.includes("[500]") {
@@ -283,62 +248,206 @@ ${"```"}
 [500]
 ${"```"}
 
-    Give me the sum of these values
-        ---
-
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```"}json and ${"```"}
-        
-        Schema:
-        {"type":"integer"}`;
+    Give me the sum of these values`;
         }
     }
 
     test:assertFail("Unexpected prompt: " + trimmedPrompt);
 }
 
-isolated function getMockLLMResponse(string message) returns string? {
+isolated function getExpectedParameterSchema(string prompt) returns map<json> {
+    string trimmedPrompt = prompt.trim();
+
+    if trimmedPrompt.startsWith("Which country") {
+        return {"type": "object", "properties": {"result": {"type": "string"}}};
+    }
+
+    if trimmedPrompt.startsWith("For each string value ") {
+        return {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "integer"}
+                        ]
+                    }
+                }
+            }
+        };
+    }
+
+    if trimmedPrompt.startsWith("Who is a popular sportsperson") {
+        return {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "required": [
+                                "firstName",
+                                "lastName",
+                                "sport",
+                                "yearOfBirth"
+                            ],
+                            "properties": {
+                                "firstName": {
+                                    "type": "string",
+                                    "description": "First name of the person"
+                                },
+                                "lastName": {
+                                    "type": "string",
+                                    "description": "Last name of the person"
+                                },
+                                "yearOfBirth": {
+                                    "type": "integer",
+                                    "format": "int64",
+                                    "description": "Year the person was born"
+                                },
+                                "sport": {
+                                    "type": "string",
+                                    "description": "Sport that the person plays"
+                                }
+                            }
+                        }
+                    ],
+                    "nullable": true
+                }
+            }
+        };
+    }
+
+    if trimmedPrompt.includes("Tell me about places in the specified country") && trimmedPrompt.includes("Sri Lanka") {
+        return {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "required": ["city", "country", "description", "name"],
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the place."},
+                            "city": {"type": "string", "description": "City in which the place is located."},
+                            "country": {"type": "string", "description": "Country in which the place is located."},
+                            "description": {"type": "string", "description": "One-liner description of the place."}
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    if trimmedPrompt.includes("Tell me about places in the specified country") && trimmedPrompt.includes("UAE") {
+        return {
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "required": ["city", "country", "description", "name"],
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the place."},
+                            "city": {
+                                "type": "string",
+                                "description": "City in which the place is located."
+                            },
+                            "country": {
+                                "type": "string",
+                                "description": "Country in which the place is located."
+                            },
+                            "description": {"type": "string", "description": "One-liner description of the place."}
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    if trimmedPrompt.startsWith("What's the output of the Ballerina code below") {
+        return {"type": "object", "properties": {"result": {"type": "integer"}}};
+    }
+
+    if trimmedPrompt.includes("What's the sum of these") {
+        if trimmedPrompt.includes("[]") {
+            return {"type": "object", "properties": {"result": {"type": "integer"}}};
+        }
+
+        if trimmedPrompt.includes("[40,50]") {
+            return {"type": "object", "properties": {"result": {"type": "integer"}}};
+        }
+    }
+
+    if trimmedPrompt.includes("Give me the sum of these values") {
+        if trimmedPrompt.includes("[]") {
+            return {"type": "object", "properties": {"result": {"type": "integer"}}};
+        }
+
+        if trimmedPrompt.includes("[500]") {
+            return {"type": "object", "properties": {"result": {"type": "integer"}}};
+        }
+    }
+
+    test:assertFail("Unexpected prompt: " + trimmedPrompt);
+}
+
+isolated function getMockLLMResponse(string message) returns string {
     if message.startsWith("Which country") {
-        return "```\n\"Sri Lanka\"\n```";
+        return "{\"result\": \"Sri Lanka\"}";
     }
 
     if message.startsWith("For each string value ") {
-        return "```\n[\"foo\", 1, \"bar\", \"2.3\", 4]\n```";
+        return "{\"result\": [\"foo\", 1, \"bar\", \"2.3\", 4]}";
     }
 
     if message.startsWith("Who is a popular sportsperson") {
-        return "```\n{\"firstName\":\"Simone\",\"lastName\":\"Biles\",\"yearOfBirth\":1997,\"sport\":\"Gymnastics\"}\n```";
+        return "{\"result\": {\"firstName\": \"Simone\", \"lastName\": \"Biles\", \"yearOfBirth\": 1997, " +
+            "\"sport\": \"Gymnastics\"}}";
     }
 
     if message.includes("Tell me about places in the specified country") && message.includes("Sri Lanka") {
-        return "```\n[{\"name\":\"Unawatuna Beach\",\"city\":\"Galle\",\"country\":\"Sri Lanka\",\"description\":\"A popular beach known for its golden sands and vibrant nightlife.\"},{\"name\":\"Mirissa Beach\",\"city\":\"Mirissa\",\"country\":\"Sri Lanka\",\"description\":\"Famous for its stunning sunsets and opportunities for whale watching.\"},{\"name\":\"Hikkaduwa Beach\",\"city\":\"Hikkaduwa\",\"country\":\"Sri Lanka\",\"description\":\"A great destination for snorkeling and surfing, lined with lively restaurants.\"}]\n```";
+        return "{\"result\": [{\"name\": \"Unawatuna Beach\", \"city\": \"Galle\", " +
+            "\"country\": \"Sri Lanka\", \"description\": \"A popular beach known for its golden sands and vibrant" +
+                " nightlife.\"}, {\"name\": \"Mirissa Beach\", \"city\": \"Mirissa\", \"country\": \"Sri Lanka\"," +
+                " \"description\": \"Famous for its stunning sunsets and opportunities for whale watching.\"}," +
+                " {\"name\": \"Hikkaduwa Beach\", \"city\": \"Hikkaduwa\", \"country\": \"Sri Lanka\"," +
+                " \"description\": \"A great destination for snorkeling and surfing, " +
+                "lined with lively restaurants.\"}]}";
     }
 
     if message.includes("Tell me about places in the specified country") && message.includes("UAE") {
-        return "```\n[{\"name\":\"Burj Khalifa\",\"city\":\"Dubai\",\"country\":\"UAE\",\"description\":\"The tallest building in the world, offering panoramic views of the city.\"},{\"name\":\"Ain Dubai\",\"city\":\"Dubai\",\"country\":\"UAE\",\"description\":\"The world's tallest observation wheel, providing breathtaking views of the Dubai skyline.\"}]\n```";
+        return "{\"result\": [{\"name\": \"Burj Khalifa\", \"city\": \"Dubai\", " +
+            "\"country\": \"UAE\", \"description\": \"The tallest building in the world, offering panoramic views" +
+                " of the city.\"}, {\"name\": \"Ain Dubai\", \"city\": \"Dubai\", \"country\": \"UAE\"," +
+                " \"description\": \"The world's tallest observation wheel, providing breathtaking " +
+                "views of the Dubai skyline.\"}]}";
     }
 
     if message.startsWith("What's the output of the Ballerina code below?") {
-        return string `The output of the provided Ballerina code calculates the sum of ${"`"}x${"`"} and ${"`"}y${"`"}, which is ${"`"}10 + 20${"`"}. Therefore, the result will be ${"`"}30${"`"}. \n\nHere is the output formatted as a JSON value that satisfies your specified schema:${"\n\n```"}json${"\n"}30${"\n```"}`;
+        return "{\"result\": 30}";
     }
 
     if message.includes("What's the sum of these") {
         if message.includes("[]") {
-            return "```\n3\n```";
+            return "{\"result\": 3}";
         }
 
         if message.includes("[40,50]") {
-            return "```\n140\n```";
+            return "{\"result\": 140}";
         }
     }
 
     if message.includes("Give me the sum of these values") {
         if message.includes("[]") {
-            return "```\n300\n```";
+            return "{\"result\": 300}";
         }
 
         if message.includes("[500]") {
-            return "```\n1200\n```";
+            return "{\"result\": 1200}";
         }
     }
 

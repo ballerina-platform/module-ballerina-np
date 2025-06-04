@@ -14,9 +14,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
+
 const JSON_CONVERSION_ERROR = "FromJsonStringError";
 const CONVERSION_ERROR = "ConversionError";
-const ERROR_MESSAGE = "Error occurred while attempting to parse the response from the LLM as the expected type. Retrying and/or validating the prompt could fix the response.";
+const ERROR_MESSAGE = "Error occurred while attempting to parse the response from the " +
+    "LLM as the expected type. Retrying and/or validating the prompt could fix the response.";
+const RESULT = "result";
+const GET_RESULTS_TOOL = "getResults";
+const NO_RELEVANT_RESPONSE_FROM_THE_LLM = "No relevant response from the LLM";
+const FUNCTION = "function";
 
 type DefaultModelConfig DefaultAzureOpenAIModelConfig|DefaultOpenAIModelConfig|DefaultBallerinaModelConfig;
 
@@ -31,9 +38,14 @@ type DefaultOpenAIModelConfig record {|
     string model;
 |};
 
+type SchemaResponse record {|
+    map<json> schema;
+    boolean isOriginallyJsonObject = true;
+|};
+
 public annotation map<json> JsonSchema on type;
 
-final ModelProvider? defaultModel;
+final ai:ModelProvider? defaultModel;
 
 function init() returns error? {
     DefaultModelConfig? defaultModelConfigVar = defaultModelConfig;
@@ -66,8 +78,8 @@ function init() returns error? {
     defaultModel = check new DefaultBallerinaModel(defaultModelConfigVar);
 }
 
-isolated function getDefaultModel() returns ModelProvider {
-    final ModelProvider? defaultModelVar = defaultModel;
+isolated function getDefaultModel() returns ai:ModelProvider {
+    final ai:ModelProvider? defaultModelVar = defaultModel;
     if defaultModelVar is () {
         panic error("Default model is not initialized");
     }
@@ -83,21 +95,24 @@ isolated function buildPromptString(Prompt prompt) returns string {
     return str.trim();
 }
 
-isolated function getPromptWithExpectedResponseSchema(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns string =>
-    string `${buildPromptString(prompt)}
-        ---
+isolated function callLlmGeneric(Prompt prompt, Context context,
+        typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
+    ai:ModelProvider model = context.model;
+    SchemaResponse schemaResponse = getExpectedResponseSchema(expectedResponseTypedesc);
+    ai:ChatMessage[] messages = [{role: "user", content: buildPromptString(prompt)}];
+    ai:ChatCompletionFunctions[] tools = check getGetResultsTool(schemaResponse.schema);
+    ai:ChatAssistantMessage response = check model->chat(messages, tools);
 
-        The output should be a JSON value that satisfies the following JSON schema, 
-        returned within a markdown snippet enclosed within ${"```json"} and ${"```"}
-        
-        Schema:
-        ${getExpectedResponseSchema(expectedResponseTypedesc).toJsonString()}`;
+    ai:FunctionCall[]? functionCalls = response.toolCalls;
+    if functionCalls is () {
+        return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+    }
 
-isolated function callLlmGeneric(Prompt prompt, Context context, 
-                                 typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
-    ModelProvider model = context.model;
-    anydata response = check model->call(prompt, expectedResponseTypedesc);
-    anydata|error result = response.ensureType(expectedResponseTypedesc);
+    string arguments = functionCalls[0].arguments;
+    anydata res = check parseResponseAsType(arguments, expectedResponseTypedesc, 
+                            schemaResponse.isOriginallyJsonObject);
+    anydata|error result = res.ensureType(expectedResponseTypedesc);
+
     if result is error {
         return error(string `Invalid value returned from the LLM Client, expected: '${
             expectedResponseTypedesc.toBalString()}', found '${(typeof response).toBalString()}'`);
@@ -114,8 +129,8 @@ isolated function parseResponseAsJson(string resp) returns json|error {
     }
     int? endIndex = resp.lastIndexOf("```");
 
-    string processedResponse = startIndex is () || endIndex is () ? 
-        resp : 
+    string processedResponse = startIndex is () || endIndex is () ?
+        resp :
         resp.substring(startIndex + startDelimLength, endIndex).trim();
     json|error result = trap processedResponse.fromJsonString();
     if result is error {
@@ -124,9 +139,18 @@ isolated function parseResponseAsJson(string resp) returns json|error {
     return result;
 }
 
-isolated function parseResponseAsType(string resp, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
-    json respJson = check parseResponseAsJson(resp);
-    anydata|error result = trap respJson.fromJsonWithType(expectedResponseTypedesc);
+isolated function parseResponseAsType(string resp,
+        typedesc<anydata> expectedResponseTypedesc, boolean isOriginallyJsonObject) returns anydata|error {
+    if !isOriginallyJsonObject {
+        map<json> respContent = check resp.fromJsonStringWithType();
+        anydata|error result = trap respContent[RESULT].fromJsonWithType(expectedResponseTypedesc);
+        if result is error {
+            return handleParseResponseError(result);
+        }
+        return result;
+    }
+
+    anydata|error result = resp.fromJsonStringWithType(expectedResponseTypedesc);
     if result is error {
         return handleParseResponseError(result);
     }
@@ -134,15 +158,60 @@ isolated function parseResponseAsType(string resp, typedesc<anydata> expectedRes
 }
 
 isolated function handleParseResponseError(error chatResponseError) returns error {
-    if chatResponseError.message().includes(JSON_CONVERSION_ERROR) 
+    if chatResponseError.message().includes(JSON_CONVERSION_ERROR)
             || chatResponseError.message().includes(CONVERSION_ERROR) {
         return error(string `${ERROR_MESSAGE}`, detail = chatResponseError);
     }
     return chatResponseError;
 }
 
-isolated function getExpectedResponseSchema(typedesc<anydata> expectedResponseTypedesc) returns map<json> {
+isolated function getExpectedResponseSchema(typedesc<anydata> expectedResponseTypedesc) returns SchemaResponse {
     // Restricted at compile-time for now.
     typedesc<json> td = checkpanic expectedResponseTypedesc.ensureType();
-    return generateJsonSchemaForTypedescAsJson(td);
+    return generateJsonObjectSchema(generateJsonSchemaForTypedescAsJson(td));
 }
+
+isolated function generateJsonObjectSchema(map<json> schema) returns SchemaResponse {
+    string[] supportedMetaDataFields = ["$schema", "$id", "$anchor", "$comment", "title", "description"];
+
+    if schema["type"] == "object" {
+        return {schema};
+    }
+
+    map<json> updatedSchema = map from var [key, value] in schema.entries()
+        where supportedMetaDataFields.indexOf(key) is int
+        select [key, value];
+
+    updatedSchema["type"] = "object";
+    map<json> content = map from var [key, value] in schema.entries()
+        where supportedMetaDataFields.indexOf(key) !is int
+        select [key, value];
+
+    updatedSchema["properties"] = {[RESULT]: content};
+
+    return {schema: updatedSchema, isOriginallyJsonObject: false};
+}
+
+isolated function getGetResultsTool(map<json> parameters) returns ai:ChatCompletionFunctions[]|error {
+    return [{
+        name: GET_RESULTS_TOOL,
+        parameters: check parameters.cloneWithType(),
+        description: "Tool to call with the response from a large language model (LLM) for a user prompt."
+    }];
+}
+
+isolated function getGetResultsToolChoice() returns ChatCompletionNamedToolChoice => {
+        'function: {
+            name: GET_RESULTS_TOOL
+        }
+    };
+
+isolated function generateOpenAIChatCompletionTools(ai:ChatCompletionFunctions[] tools) 
+            returns ChatCompletionTool[]|error =>
+        [{
+            'function: {
+                name: tools[0].name,
+                description: tools[0].description,
+                parameters: check tools[0].parameters.cloneWithType()
+            }
+        }];

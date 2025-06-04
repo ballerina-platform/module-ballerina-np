@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/jballerina.java;
 
 # Configuration for the model to default to if not explicitly
@@ -50,17 +51,5 @@ public isolated function callLlm(Prompt prompt,
 # Context for Large Language Model (LLM) usage.
 public type Context record {|
     # The model to use
-    ModelProvider model = getDefaultModel();
+    ai:ModelProvider model = getDefaultModel();
 |};
-
-# Abstraction for a Large Language Model (LLM), with chat/completion functionality.
-public type ModelProvider distinct isolated client object {
-
-    # Makes a call to the Large Language Model (LLM) with the given prompt and returns the result.
-    #
-    # + prompt - The prompt to be sent to the LLM
-    # + expectedResponseTypedesc - The schema for the expected response from the LLM 
-    # + return - The value extracted/parsed from the LLM's response or an error if the call or parsing fails
-    // Note: once dependently-typed functions can be implemented in Ballerina, the return type can change
-    isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error;
-};

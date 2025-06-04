@@ -9,6 +9,26 @@ distribution-version = "2201.13.0-m2"
 
 [[package]]
 org = "ballerina"
+name = "ai"
+version = "1.0.0"
+dependencies = [
+	{org = "ballerina", name = "file"},
+	{org = "ballerina", name = "http"},
+	{org = "ballerina", name = "io"},
+	{org = "ballerina", name = "jballerina.java"},
+	{org = "ballerina", name = "lang.regexp"},
+	{org = "ballerina", name = "log"},
+	{org = "ballerina", name = "mime"},
+	{org = "ballerina", name = "url"},
+	{org = "ballerina", name = "xmldata"},
+	{org = "ballerina", name = "yaml"}
+]
+modules = [
+	{org = "ballerina", packageName = "ai", moduleName = "ai"}
+]
+
+[[package]]
+org = "ballerina"
 name = "auth"
 version = "2.14.0"
 dependencies = [
@@ -238,6 +258,7 @@ org = "ballerina"
 name = "np_test_commons"
 version = "0.3.1"
 dependencies = [
+	{org = "ballerina", name = "ai"},
 	{org = "ballerina", name = "http"},
 	{org = "ballerina", name = "test"}
 ]
@@ -278,10 +299,11 @@ dependencies = [
 [[package]]
 org = "ballerina"
 name = "task"
-version = "2.7.0"
+version = "2.10.0"
 dependencies = [
 	{org = "ballerina", name = "jballerina.java"},
-	{org = "ballerina", name = "time"}
+	{org = "ballerina", name = "time"},
+	{org = "ballerina", name = "uuid"}
 ]
 
 [[package]]
@@ -311,5 +333,36 @@ name = "url"
 version = "2.6.0"
 dependencies = [
 	{org = "ballerina", name = "jballerina.java"}
+]
+
+[[package]]
+org = "ballerina"
+name = "uuid"
+version = "1.10.0"
+dependencies = [
+	{org = "ballerina", name = "crypto"},
+	{org = "ballerina", name = "jballerina.java"},
+	{org = "ballerina", name = "lang.int"},
+	{org = "ballerina", name = "time"}
+]
+
+[[package]]
+org = "ballerina"
+name = "xmldata"
+version = "2.9.0"
+dependencies = [
+	{org = "ballerina", name = "jballerina.java"}
+]
+
+[[package]]
+org = "ballerina"
+name = "yaml"
+version = "0.8.0"
+dependencies = [
+	{org = "ballerina", name = "file"},
+	{org = "ballerina", name = "io"},
+	{org = "ballerina", name = "lang.array"},
+	{org = "ballerina", name = "lang.regexp"},
+	{org = "ballerina", name = "log"}
 ]
 
