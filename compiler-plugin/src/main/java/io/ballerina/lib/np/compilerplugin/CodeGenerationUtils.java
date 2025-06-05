@@ -293,60 +293,40 @@ public class CodeGenerationUtils {
     }
 
     private static String generatePrompt(String originalFuncName, String generatedFuncName, String prompt) {
-        return String.format("""
-                        Generate a function named '%s' with the code that needs \
-                        to go in the '%s' function to satisfy the following user prompt:
-                        ${"```"}   \s
-                        %s
-                        ${"```"}   \s
-                        The '%s' function should have exactly the same signature as the '%s' function.
-                        Use only the parameters passed to the function and module-level clients that are clients \
-                        from the ballerina and ballerinax module in the generated code. Respond with only the \
-                        generated code, nothing else. Ensure that there are NO compile-time errors.
-                        
-                        Respond with ONLY THE GENERATED FUNCTION AND ANY IMPORTS REQUIRED BY THE GENERATED FUNCTION.
-                        """,
-                generatedFuncName, originalFuncName, prompt, generatedFuncName, originalFuncName);
+        String path = CodeGenerationUtils.class.getClassLoader()
+                .getResource("prompts/generate_function.md").getPath();
+        try {
+            String promptTemplate = Files.readString(Path.of(path));
+            return promptTemplate.replaceAll("\\{\\{GENERATTED_FUNCTION_NAME\\}\\}", generatedFuncName)
+                    .replaceAll("\\{\\{OUTER_FUNCTION_NAME\\}\\}", originalFuncName)
+                    .replaceAll("\\{\\{TASK\\}\\}", prompt);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read the prompt file: " + e.getMessage());
+        }
     }
 
     private static String generatePrompt(NaturalExpressionNode naturalExpressionNode,
                                          TypeSymbol expectedType, SemanticModel semanticModel) {
         NodeList<Node> userPromptContent = naturalExpressionNode.prompt();
-        StringBuilder sb = new StringBuilder(String.format("""
-                Generate a value expression to satisfy the following requirement using only Ballerina literals and
-                constructor expressions. The expression should be self-contained and should not have references.
-                
-                Ballerina literals:
-                1. nil-literal :=  () | null
-                2. boolean-literal := true | false
-                3. numeric-literal - int, float, and decimal values (e.g., 1, 2.0, 3f, 4.5d)
-                4. string-literal - double quoted strings (e.g., "foo") or
-                    string-template literal without interpolations (e.g., string `foo`)
-                
-                Ballerina constructor expressions:
-                1. List constructor expression - e.g., [1, 2]
-                2. Mapping constructor expression - e.g., {a: 1, b: 2, "c": 3}
-                3. Table constructor expression - e.g., table [{a: 1, b: 2}, {a: 2, b: 4}]
-                
-                The value should belong to the type '%s'. This value will be used in the code in place of the
-                `const natural {...}` expression with the requirement.
-                
-                Respond with ONLY THE VALUE EXPRESSION.
-                
-                Requirement:
-                """, expectedType.signature()));
+        String path = CodeGenerationUtils.class.getClassLoader()
+                .getResource("prompts/generate_function.md").getPath();
+        try {
+            String promptTemplate = Files.readString(Path.of(path));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < userPromptContent.size(); i++) {
+                Node node = userPromptContent.get(i);
+                if (node instanceof LiteralValueToken literalValueToken) {
+                    sb.append(literalValueToken.text());
+                    continue;
+                }
 
-        for (int i = 0; i < userPromptContent.size(); i++) {
-            Node node = userPromptContent.get(i);
-            if (node instanceof LiteralValueToken literalValueToken) {
-                sb.append(literalValueToken.text());
-                continue;
+                sb.append(((ConstantSymbol) semanticModel.symbol(((InterpolationNode) node).expression()).get())
+                        .resolvedValue().get());
             }
-
-            sb.append(((ConstantSymbol) semanticModel.symbol(((InterpolationNode) node).expression()).get())
-                    .resolvedValue().get());
+            return promptTemplate.replaceAll("\\{\\{REQUIREMENT\\}\\}", sb.toString());
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read the prompt file: " + e.getMessage());
         }
-        return sb.toString();
     }
 
     private static void updateSourceFilesWithGeneratedContent(JsonArray sourceFiles, String generatedFuncName,
