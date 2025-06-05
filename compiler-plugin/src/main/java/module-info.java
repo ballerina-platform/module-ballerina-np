@@ -19,6 +19,7 @@
 module io.ballerina.lib.np.compilerplugin {
     requires java.net.http;
     requires com.google.gson;
+    requires io.ballerina.formatter.core;
     requires io.ballerina.lang;
     requires io.ballerina.parser;
     requires io.ballerina.tools.api;

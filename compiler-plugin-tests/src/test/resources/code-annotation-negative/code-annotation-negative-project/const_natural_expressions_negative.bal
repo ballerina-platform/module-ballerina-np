@@ -16,7 +16,7 @@
 
 import ballerina/jballerina.java;
 
-const annot on source external;
+const annotation annot on source external;
 
 function getArray() returns int[]|error = @code { // error, not yet supported
     prompt: string `Give me an array of integers.`
