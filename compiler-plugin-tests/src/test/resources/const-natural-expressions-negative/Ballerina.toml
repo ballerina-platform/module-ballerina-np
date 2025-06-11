@@ -3,3 +3,9 @@ org = "np_test"
 name = "const_natural_expr_negative"
 version = "0.1.0"
 distribution = "2201.13.0"
+
+[[dependency]]
+org="ballerina"
+name="ai"
+version="1.0.0"
+repository="local"

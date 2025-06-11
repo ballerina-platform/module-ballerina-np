@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/ai;
 import ballerina/http;
 
 # Configuration for Azure OpenAI model.
@@ -26,7 +27,7 @@ type AzureOpenAIModelConfig record {|
 
 # Azure OpenAI model chat completion client.
 isolated distinct client class AzureOpenAIModel {
-    *ModelProvider;
+    *ai:ModelProvider;
 
     private final http:Client cl;
     private final string deploymentId;
@@ -41,38 +42,63 @@ isolated distinct client class AzureOpenAIModel {
 
         http:BearerTokenConfig|ApiKeysConfig auth = connectionConfig.auth;
         self.headers = auth is ApiKeysConfig ? {"api-key": auth?.apiKey} : {};
-        
+
         self.cl = check new (azureOpenAIModelConfig.serviceUrl, httpClientConfig);
 
         self.deploymentId = deploymentId;
         self.apiVersion = apiVersion;
     }
 
-    isolated remote function chat(AzureOpenAICreateChatCompletionRequest chatBody) 
-            returns AzureOpenAICreateChatCompletionResponse|error {
-        string resourcePath = string `/deployments/${check getEncodedUri(self.deploymentId)}/chat/completions`;
-        resourcePath = string `${resourcePath}?${check getEncodedUri("api-version")}=${self.apiVersion}`;
-        return self.cl->post(resourcePath, chatBody, self.headers);
-    }
+    isolated remote function chat(ai:ChatMessage[] messages, ai:ChatCompletionFunctions[] tools = [], 
+            string? stop = ()) returns ai:ChatAssistantMessage|ai:LlmError {
+        ChatCompletionTool[]|error chatCompletionTools = generateOpenAIChatCompletionTools(tools);
+        if chatCompletionTools is error {
+            return error ai:LlmError(
+                "Failed to generate OpenAI chat completion tools: " + chatCompletionTools.message());
+        }
 
-    isolated remote function call(Prompt prompt, typedesc<anydata> expectedResponseTypedesc) returns anydata|error {
         AzureOpenAICreateChatCompletionRequest chatBody = {
-            messages: [{role: "user", content: getPromptWithExpectedResponseSchema(prompt, expectedResponseTypedesc)}]
+            messages: [{role: ai:USER, content: <string>messages[0].content}],
+            tools: chatCompletionTools,
+            tool_choice: getGetResultsToolChoice()
         };
 
-        AzureOpenAICreateChatCompletionResponse chatResult = check self->chat(chatBody);
+        AzureOpenAICreateChatCompletionResponse|error chatResult = self.callAzureOpenAIModel(chatBody);
+        if chatResult is error {
+            return error ai:LlmError("LLM call failed: " + chatResult.message());
+        }
+        
         record {
             AzureOpenAIChatCompletionResponseMessage message?;
         }[]? choices = chatResult.choices;
 
         if choices is () {
-            return error("No completion choices");
+            return error ai:LlmError("No completion choices");
         }
 
-        string? resp = choices[0].message?.content;
-        if resp is () {
-            return error("No completion message");
+        ChatCompletionMessageToolCall[]? toolCalls = choices[0].message?.tool_calls;
+
+        if toolCalls is () || toolCalls.length() == 0 {
+            return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
         }
-        return parseResponseAsType(resp, expectedResponseTypedesc);
+
+        ChatCompletionMessageToolCall tool = toolCalls[0];
+        map<json>|error arguments = tool.'function.arguments.fromJsonStringWithType();
+        if arguments is error {
+            return error ai:LlmError(NO_RELEVANT_RESPONSE_FROM_THE_LLM);
+        }
+
+        return {
+            role: ai:ASSISTANT,
+            name: GET_RESULTS_TOOL,
+            toolCalls: [{name: tool.'function.name, arguments}]
+        };
+    }
+
+    isolated function callAzureOpenAIModel(AzureOpenAICreateChatCompletionRequest chatBody)
+            returns AzureOpenAICreateChatCompletionResponse|error {
+        string resourcePath = string `/deployments/${check getEncodedUri(self.deploymentId)}/chat/completions`;
+        resourcePath = string `${resourcePath}?${check getEncodedUri("api-version")}=${self.apiVersion}`;
+        return self.cl->post(resourcePath, chatBody, self.headers);
     }
 }

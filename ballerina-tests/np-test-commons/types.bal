@@ -14,22 +14,51 @@
 // specific language governing permissions and limitations
 // under the License.
 
-type OpenAIChatCompletionRequestUserMessage record {
+type OpenAIChatCompletionRequestUserMessage record {|
     string content;
     "user" role;
     string name?;
-};
+|};
 
-type OpenAICreateChatCompletionRequest record {
+type AzureOpenAIChatCompletionRequestUserMessage record {|
+    string content;
+    "user" role;
+    string name?;
+|};
+
+type AssistantsNamedToolChoiceFunction record {|
+    string name;
+|};
+
+type ChatCompletionNamedToolChoice record {|
+    FUNCTION 'type = FUNCTION;
+    AssistantsNamedToolChoiceFunction 'function;
+|};
+
+type ChatCompletionToolChoiceOption ChatCompletionNamedToolChoice;
+
+type OpenAICreateChatCompletionRequest record {|
     OpenAIChatCompletionRequestUserMessage[1] messages;
     string model;
-    boolean? store = false;
-    decimal? frequency_penalty = 0;
-    boolean? logprobs = false;
-    int? n = 1;
-    decimal? presence_penalty = 0;
-    "auto"|"default"? service_tier = "auto";
-    boolean? 'stream = false;
-    decimal? temperature = 1;
-    decimal? top_p = 1;
-};
+    ChatCompletionTool[] tools?;
+    ChatCompletionToolChoiceOption tool_choice?;
+|};
+
+type ChatCompletionTool record {|
+    FUNCTION 'type = FUNCTION;
+    FunctionObject 'function;
+|};
+
+type FunctionParameters map<json>;
+
+type FunctionObject record {|
+    string description?;
+    string name;
+    FunctionParameters parameters;
+|};
+
+type DefaultChatCompletionRequest record {|
+    AzureOpenAIChatCompletionRequestUserMessage[1] messages;
+    ChatCompletionTool[] tools?;
+    ChatCompletionToolChoiceOption tool_choice?;
+|};
