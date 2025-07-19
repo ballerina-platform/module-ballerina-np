@@ -102,8 +102,8 @@ compileJava {
 test {
     systemProperty "ballerina.offline.flag", "true"
     systemProperty "ballerina.np.version", project.version
-    environment "BAL_COPILOT_URL", "http://localhost:8080"
-    environment "BAL_COPILOT_ACCESS_TOKEN", "not-a-real-token"
+    environment "BAL_CODEGEN_URL", "http://localhost:8080"
+    environment "BAL_CODEGEN_TOKEN", "not-a-real-token"
     useTestNG()
 
     testLogging {

@@ -97,11 +97,11 @@ public class CompileTimePromptAsCodeCodeModificationTask implements ModifierTask
     private static final String GENERATED_DIRECTORY = "generated";
     private static final String GENERATED_FUNC_FILE_NAME_SUFFIX = "_np_generated" + BAL_EXT;
 
-    private static final String BAL_COPILOT_URL = "BAL_COPILOT_URL";
-    private static final String BAL_COPILOT_ACCESS_TOKEN = "BAL_COPILOT_ACCESS_TOKEN";
+    private static final String BAL_CODEGEN_URL = "BAL_CODEGEN_URL";
+    private static final String BAL_CODEGEN_TOKEN = "BAL_CODEGEN_TOKEN";
 
-    private static final String copilotUrl = System.getenv(BAL_COPILOT_URL);
-    private static final String copilotAccessToken = System.getenv(BAL_COPILOT_ACCESS_TOKEN);
+    private static final String copilotUrl = System.getenv(BAL_CODEGEN_URL);
+    private static final String copilotAccessToken = System.getenv(BAL_CODEGEN_TOKEN);
 
     @Override
     public void modify(SourceModifierContext modifierContext) {
